@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   title: "Rentz",
   description: "Rentz clasic, în 3 sau 4 prieteni, pe telefon.",
   applicationName: "Rentz",
+  // Not auto-prefixed with basePath, hence the explicit "/rentz" (Turbopack also does not prefix apple-icon.tsx).
+  icons: {
+    icon: { url: "/rentz/favicon.ico", sizes: "48x48", type: "image/x-icon" },
+    apple: { url: "/rentz/pwa-icon/apple", sizes: "180x180", type: "image/png" },
+  },
   appleWebApp: { capable: true, title: "Rentz", statusBarStyle: "default" },
   other: { "apple-mobile-web-app-capable": "yes" },
 };

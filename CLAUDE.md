@@ -7,7 +7,7 @@
   Local git identity is pinned in `.git/config`.
 - The user connects the repo to Vercel by hand. Once connected, every push to `main` deploys to production.
   Functions run in `fra1` (Frankfurt, `vercel.json`), next to the Supabase DB.
-- Production domain: https://rentz.hailatat.icu
+- Production domain: https://games.hailatat.icu/rentz (basePath `/rentz`, proxied by the hub; Vercel project web-rentz-game.vercel.app)
 - Ask the user before pushing (= deploying), unless they explicitly say to deploy.
 - **Before every push, bump the patch version** in `package.json` (and `npm install --package-lock-only`).
   It is shown in-game next to "Setări".

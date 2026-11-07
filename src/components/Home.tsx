@@ -73,7 +73,8 @@ export function Home() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-8">
       <div className="flex items-center justify-between gap-2">
-        <a href="https://hailatat.icu" className="text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300">
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- "/" is the hub zone: full navigation, no basePath */}
+        <a href="/" className="text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300">
           ← Back to haiLaTăt.icu hub
         </a>
         <FeedbackButton />

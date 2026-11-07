@@ -1,7 +1,7 @@
 # webRentzGame
 
 Rentz multiplayer, jocul clasic de cărți, în 3 sau 4 prieteni, pe telefon.
-Next.js 16 (App Router), Supabase (Postgres + Realtime Broadcast), deploy pe Vercel (fra1). Domeniu: https://rentz.hailatat.icu
+Next.js 16 (App Router), Supabase (Postgres + Realtime Broadcast), deploy pe Vercel (fra1). Domeniu: https://games.hailatat.icu/rentz (basePath `/rentz`, servit prin hub)
 
 ## Reguli
 
@@ -37,4 +37,4 @@ Camerele din lobby sau terminate se închid după 2 minute în care nu le are ni
 1. Supabase (proiectul comun): SQL Editor → rulează `supabase/schema.sql`. Toate tabelele au prefixul `rentz_`.
 2. Local: `npm install`, `.env.local` după `.env.example`, `npm run dev`, `npm test`.
 3. Vercel: Import `florin2495/webRentzGame` și adaugi cele 3 variabile din `.env.example`. Regiunea e deja `fra1` în `vercel.json`.
-   Domeniu: Settings → Domains → `rentz.hailatat.icu` (CNAME la registrar).
+   Fără domeniu propriu: hub-ul (`games.hailatat.icu`) face proxy pe `/rentz` către `web-rentz-game.vercel.app`.
