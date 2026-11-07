@@ -24,7 +24,7 @@ export function PlayerList({ state, token, refresh, kickLeft }: Props) {
   async function kick(id: string, nickname: string) {
     const warning =
       room.status === "playing"
-        ? `Scoți jucătorul ${nickname} din cameră? Are ${KICK_GRACE_MS / 1000} secunde să refuze.`
+        ? `Scoți jucătorul ${nickname} din cameră? Are ${KICK_GRACE_MS / 1000} secunde să refuze; dacă nu, meciul se încheie pentru toți.`
         : `Scoți jucătorul ${nickname} din cameră?`;
     if (!window.confirm(warning)) return;
     setBusy(id);
