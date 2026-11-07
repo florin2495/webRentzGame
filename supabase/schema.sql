@@ -39,12 +39,17 @@ create table if not exists public.rentz_players (
   is_host    boolean not null default false,
   joined_at  timestamptz not null default now(),
   kick_requested_at timestamptz,                           -- pending kick during a match (10 s to refuse); null = none
+  last_seen_at timestamptz not null default now(),         -- presence: disconnected after 45 s, see migrations/002
+  device_hash  text,                                       -- sha256 of the browser's device id, see migrations/002
   constraint rentz_players_room_id_fkey foreign key (room_id) references public.rentz_rooms (id) on delete cascade
 );
 create unique index if not exists rentz_players_room_nickname_uq on public.rentz_players (room_id, lower(nickname));
 create index if not exists rentz_players_room_idx on public.rentz_players (room_id);
--- For databases created before migration 001 (idempotent):
+-- For databases created before migrations 001 / 002 (idempotent):
 alter table public.rentz_players add column if not exists kick_requested_at timestamptz;
+alter table public.rentz_players add column if not exists last_seen_at timestamptz not null default now();
+alter table public.rentz_players add column if not exists device_hash text;
+create index if not exists rentz_players_room_seen_idx on public.rentz_players (room_id, last_seen_at);
 
 do $$ begin
   alter table public.rentz_rooms

@@ -21,7 +21,7 @@ import {
   type Rank,
 } from "@/lib/game";
 import type { MatchView, RoomState } from "@/lib/types";
-import { PlayerList } from "./PlayerList";
+import { OfflineBadge, PlayerList } from "./PlayerList";
 import { PlayingCard } from "./PlayingCard";
 import { Scoreboard } from "./Scoreboard";
 import { Button, Card, ErrorText } from "./ui";
@@ -219,7 +219,7 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
         <Card className="bg-emerald-50 dark:bg-emerald-950/40">
           <ul className={`grid gap-2 ${n === 4 ? "grid-cols-3" : "grid-cols-2"}`}>
             {others.map((s) => (
-              <SeatChip key={s} m={m} seat={s} />
+              <SeatChip key={s} m={m} seat={s} connected={state.players.find((p) => p.id === m.seats[s])?.connected} />
             ))}
           </ul>
 
@@ -379,7 +379,7 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
   );
 }
 
-function SeatChip({ m, seat }: { m: MatchView; seat: number }) {
+function SeatChip({ m, seat, connected }: { m: MatchView; seat: number; connected: boolean | undefined }) {
   const acting = m.acting === seat;
   const place = m.finished.indexOf(seat);
   const passed = m.passes.includes(seat);
@@ -400,6 +400,7 @@ function SeatChip({ m, seat }: { m: MatchView; seat: number }) {
         {m.game === "rentz" && place < 0 && passed && " · pas"}
       </span>
       {m.refused[seat] && <span className="block text-[10px] text-amber-600">refuz folosit</span>}
+      <OfflineBadge connected={connected} />
     </li>
   );
 }

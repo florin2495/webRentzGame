@@ -6,6 +6,16 @@ import { KICK_GRACE_MS } from "@/lib/kick";
 import type { RoomState } from "@/lib/types";
 import { Card, ErrorText } from "./ui";
 
+/** Shown next to a player not seen for 45 s (phone in the background, closed tab, no network). */
+export function OfflineBadge({ connected }: { connected: boolean | undefined }) {
+  if (connected !== false) return null;
+  return (
+    <span className="shrink-0 rounded bg-zinc-200 px-1.5 text-[10px] font-semibold uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+      deconectat
+    </span>
+  );
+}
+
 interface Props {
   state: RoomState;
   token: string;
@@ -55,6 +65,7 @@ export function PlayerList({ state, token, refresh, kickLeft }: Props) {
                 {p.isHost && (
                   <span className="rounded bg-zinc-200 px-1.5 text-[10px] font-semibold uppercase dark:bg-zinc-800">host</span>
                 )}
+                <OfflineBadge connected={p.connected} />
                 {left !== null && (
                   <span className="shrink-0 rounded bg-amber-100 px-1.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                     iese în {left} s

@@ -23,6 +23,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | --- | --- | --- |
 | `supabase/schema.sql` (initial) | yes (2026-11-07, verified by a full E2E match on production) | `rentz_rooms` (match as jsonb + version), `rentz_players` |
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `rentz_players.kick_requested_at timestamptz` (pending kick, 10 s to press "Ignoră"). Do not push the kick-with-ignore code before it runs: every player query selects the column. |
+| `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `rentz_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push before it is applied: every player query selects `last_seen_at`. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, and the same change folded
@@ -36,6 +37,10 @@ Rules for schema changes:
   jsonb column; each action is applied by `matchAction` in `src/lib/server/room.ts` and saved with
   `.eq("version", read_version)`, so concurrent moves cannot both land.
 - `/state` returns `viewMatch(...)`: own hand only, everything else is public (played cards are face up anyway).
+- Rejoin the same seat (`src/lib/reconnect.ts`): every member request stamps `last_seen_at` (at most every 10 s);
+  re-joining with an existing nickname reclaims that seat (same player id, new token, pending kick cleared) from the
+  same device (`device_hash`) or once the seat has been unseen for 45 s, also mid-match. `/state` exposes only a
+  derived `connected` flag ("deconectat" badge).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.
 

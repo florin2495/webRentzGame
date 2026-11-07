@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { MAX_PLAYERS, MIN_PLAYERS } from "@/lib/game";
 import type { RoomState } from "@/lib/types";
+import { OfflineBadge } from "./PlayerList";
 import { Rules } from "./Rules";
 import { Button, Card, ErrorText } from "./ui";
 
@@ -53,6 +54,7 @@ export function Lobby({ state, token, refresh }: Props) {
                 {p.isHost && (
                   <span className="rounded bg-zinc-200 px-1.5 text-[10px] font-semibold uppercase dark:bg-zinc-800">host</span>
                 )}
+                <OfflineBadge connected={p.connected} />
               </span>
               {isHost && p.id !== me.id && (
                 <button
