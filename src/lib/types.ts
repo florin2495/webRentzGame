@@ -6,6 +6,8 @@ export interface PublicPlayer {
   id: string;
   nickname: string;
   isHost: boolean;
+  /** Ms left before a pending kick is enforced (0-10000), null when none. Remaining time, not a timestamp: no clock skew. */
+  kickRemainingMs: number | null;
 }
 
 /** The match as one player may see it: own hand only, everything else is public. Seats are indexes into `seats`. */

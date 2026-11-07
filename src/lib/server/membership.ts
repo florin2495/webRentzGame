@@ -1,8 +1,9 @@
 import "server-only";
 import { abandonMatch, leaderSeat } from "@/lib/game";
+import { isKickExpired, KICK_GRACE_MS, KICK_NETWORK_GRACE_MS } from "@/lib/kick";
 import { notifyRoom } from "./broadcast";
 import { db, type RoomRow, T } from "./db";
-import { listPlayers } from "./room";
+import { getRoomByCode, listPlayers } from "./room";
 
 /**
  * Removes a player from a room (used by both "leave" and the host's "kick").
@@ -48,4 +49,43 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
 
   await notifyRoom(room.id, reason);
   return { roomClosed: false };
+}
+
+/**
+ * Lazy enforcement of pending kicks (serverless, no timers): removes every player of the room whose
+ * grace period (plus network tolerance) has lapsed, exactly like an immediate kick. Each removal is
+ * claimed atomically (conditional update on the value read), so concurrent requests never remove twice.
+ * Returns the room as it is afterwards; getRoomByCode answers 404 if the room closed meanwhile.
+ */
+export async function enforceExpiredKicks(room: RoomRow): Promise<RoomRow> {
+  const cutoff = new Date(Date.now() - (KICK_GRACE_MS + KICK_NETWORK_GRACE_MS)).toISOString();
+  const { data, error } = await db()
+    .from(T.players)
+    .select("id, kick_requested_at")
+    .eq("room_id", room.id)
+    .not("kick_requested_at", "is", null)
+    .lt("kick_requested_at", cutoff);
+  if (error) throw error;
+  let current = room;
+  for (const row of (data ?? []) as { id: string; kick_requested_at: string }[]) {
+    if (!isKickExpired(row.kick_requested_at, Date.now())) continue;
+    const { data: claimed, error: claimError } = await db()
+      .from(T.players)
+      .update({ kick_requested_at: null })
+      .eq("id", row.id)
+      .eq("kick_requested_at", row.kick_requested_at)
+      .select("id");
+    if (claimError) throw claimError;
+    if (!claimed || claimed.length === 0) continue; // another request got it
+    const { roomClosed } = await removePlayer(current, row.id, "player_kicked");
+    current = await getRoomByCode(current.code); // fresh version / host / status; 404 if the room closed
+    if (roomClosed) break;
+  }
+  return current;
+}
+
+/** A new match / back to the lobby: no pending kick survives. */
+export async function clearPendingKicks(roomId: string): Promise<void> {
+  const { error } = await db().from(T.players).update({ kick_requested_at: null }).eq("room_id", roomId).not("kick_requested_at", "is", null);
+  if (error) throw error;
 }

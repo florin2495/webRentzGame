@@ -21,6 +21,7 @@ import {
   type Rank,
 } from "@/lib/game";
 import type { MatchView, RoomState } from "@/lib/types";
+import { PlayerList } from "./PlayerList";
 import { PlayingCard } from "./PlayingCard";
 import { Scoreboard } from "./Scoreboard";
 import { Button, Card, ErrorText } from "./ui";
@@ -29,6 +30,7 @@ interface Props {
   state: RoomState;
   token: string;
   refresh: () => Promise<void>;
+  kickLeft: (playerId: string) => number | null;
 }
 
 const fmt = (n: number) => (n > 0 ? `+${n}` : `${n}`);
@@ -57,7 +59,7 @@ function takenSummary(m: MatchView, seat: number): string {
   }
 }
 
-export function Game({ state, token, refresh }: Props) {
+export function Game({ state, token, refresh, kickLeft }: Props) {
   const { room, me } = state;
   const m = state.match!;
   const base = `/api/rooms/${room.code}`;
@@ -343,6 +345,8 @@ export function Game({ state, token, refresh }: Props) {
       <ErrorText>{error}</ErrorText>
 
       <Scoreboard m={m} />
+
+      <PlayerList state={state} token={token} refresh={refresh} kickLeft={kickLeft} />
 
       {lastDeal && !over && (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={() => setSeenDeals(m.history.length)}>

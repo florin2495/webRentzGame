@@ -49,8 +49,10 @@ export interface PlayerRow {
   nickname: string;
   is_host: boolean;
   joined_at: string;
+  /** Pending kick during a match (null = none). See src/lib/kick.ts. */
+  kick_requested_at: string | null;
 }
 
-export const PLAYER_COLUMNS = "id, room_id, nickname, is_host, joined_at";
+export const PLAYER_COLUMNS = "id, room_id, nickname, is_host, joined_at, kick_requested_at";
 export const ROOM_COLUMNS =
   "id, code, name, password_hash, status, round, host_player_id, winner_player_id, match, version, last_activity_at";

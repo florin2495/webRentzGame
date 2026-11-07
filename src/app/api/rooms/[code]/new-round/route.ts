@@ -1,5 +1,6 @@
 import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
+import { clearPendingKicks } from "@/lib/server/membership";
 import { fail, handle } from "@/lib/server/http";
 import { requireHost, requireMember, requireStatus } from "@/lib/server/room";
 
@@ -29,6 +30,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/ne
     if (error) throw error;
     if (!data || data.length === 0) fail(409, "Meciul nou a fost deja pornit.");
 
+    await clearPendingKicks(room.id);
     await notifyRoom(room.id, "new_round");
     return { ok: true };
   });

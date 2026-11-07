@@ -1,6 +1,7 @@
 import { MAX_PLAYERS, MIN_PLAYERS, newMatch } from "@/lib/game";
 import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
+import { clearPendingKicks } from "@/lib/server/membership";
 import { fail, handle } from "@/lib/server/http";
 import { listPlayers, requireHost, requireMember, requireStatus, serverRandom } from "@/lib/server/room";
 
@@ -48,6 +49,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/st
     if (error) throw error;
     if (!data || data.length === 0) fail(409, "Jocul a fost deja pornit.");
 
+    await clearPendingKicks(room.id);
     await notifyRoom(room.id, "game_started");
     return { ok: true };
   });
