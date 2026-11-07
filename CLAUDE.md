@@ -21,7 +21,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 
 | Migration | Applied to the live DB | Notes |
 | --- | --- | --- |
-| `supabase/schema.sql` (initial) | **not yet** | `rentz_rooms` (match as jsonb + version), `rentz_players` |
+| `supabase/schema.sql` (initial) | yes (2026-11-07, verified by a full E2E match on production) | `rentz_rooms` (match as jsonb + version), `rentz_players` |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, and the same change folded
