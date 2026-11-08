@@ -24,6 +24,7 @@ import { Game } from "./Game";
 import { KickModal } from "./KickModal";
 import { Lobby } from "./Lobby";
 import { SettingsPanel } from "./SettingsPanel";
+import { SpectatorPanel } from "./SpectatorPanel";
 import { Button, Card, ErrorText, Field } from "./ui";
 
 const POLL_MS = 15_000;
@@ -185,6 +186,7 @@ function Room({ code, token }: { code: string; token: string }) {
       {state.me.kickRemainingMs !== null && (
         <KickModal code={code} token={token} seconds={kickLeft(state.me.id) ?? 0} refresh={refresh} />
       )}
+      <SpectatorPanel state={state} token={token} refresh={refresh} />
       <SettingsPanel />
       <LeaveButton state={state} token={token} />
     </main>
@@ -198,9 +200,12 @@ function LeaveButton({ state, token }: { state: RoomState; token: string }) {
   const { room, me, players } = state;
   const isHost = room.hostPlayerId === me.id;
   const alone = players.length <= 1;
+  const spectator = me.role === "spectator";
 
   async function leave() {
-    const warning = alone
+    const warning = spectator
+      ? "Sigur vrei să părăsești camera?"
+      : alone
       ? "Ești singur în cameră. Dacă pleci, camera se închide. Continui?"
       : room.status === "playing"
         ? "Părăsești meciul în desfășurare. Meciul se oprește pentru toți, cu scorul de acum. Continui?"
@@ -227,7 +232,7 @@ function LeaveButton({ state, token }: { state: RoomState; token: string }) {
   return (
     <div className="pb-6 pt-2 text-center">
       <Button variant="danger" className="w-full" onClick={() => void leave()} disabled={busy}>
-        {busy ? "Se iese…" : room.status === "playing" ? "Părăsește meciul" : "Părăsește camera"}
+        {busy ? "Se iese…" : room.status === "playing" && !spectator ? "Părăsește meciul" : "Părăsește camera"}
       </Button>
       <div className="mt-2">
         <ErrorText>{error}</ErrorText>
@@ -268,7 +273,7 @@ function RoomHeader({ state }: { state: RoomState }) {
           <FeedbackButton compact />
         </div>
         <p className="text-xs text-zinc-500">
-          {state.players.length}/{MAX_PLAYERS} jucători · meciul {room.round} · {statusLabel}
+          {state.players.length}/{MAX_PLAYERS} jucători{state.spectators.length > 0 && ` · ${state.spectators.length} spectatori`} · meciul {room.round} · {statusLabel}
         </p>
       </div>
       <button

@@ -41,6 +41,9 @@ create table if not exists public.rentz_players (
   kick_requested_at timestamptz,                           -- pending kick during a match (10 s to refuse); null = none
   last_seen_at timestamptz not null default now(),         -- presence: disconnected after 45 s, see migrations/002
   device_hash  text,                                       -- sha256 of the browser's device id, see migrations/002
+  role         text not null default 'player' check (role in ('player', 'spectator')),  -- see migrations/003
+  seat         integer,                                    -- table order of players (host-controlled), see migrations/003
+  queued_at    timestamptz,                                -- spectator waiting for the next match, see migrations/003
   constraint rentz_players_room_id_fkey foreign key (room_id) references public.rentz_rooms (id) on delete cascade
 );
 create unique index if not exists rentz_players_room_nickname_uq on public.rentz_players (room_id, lower(nickname));
@@ -49,6 +52,12 @@ create index if not exists rentz_players_room_idx on public.rentz_players (room_
 alter table public.rentz_players add column if not exists kick_requested_at timestamptz;
 alter table public.rentz_players add column if not exists last_seen_at timestamptz not null default now();
 alter table public.rentz_players add column if not exists device_hash text;
+alter table public.rentz_players add column if not exists role text not null default 'player';
+alter table public.rentz_players add column if not exists seat integer;
+alter table public.rentz_players add column if not exists queued_at timestamptz;
+do $$ begin
+  alter table public.rentz_players add constraint rentz_players_role_check check (role in ('player', 'spectator'));
+exception when duplicate_object then null; end $$;
 create index if not exists rentz_players_room_seen_idx on public.rentz_players (room_id, last_seen_at);
 
 do $$ begin

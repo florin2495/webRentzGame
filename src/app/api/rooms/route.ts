@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     const token = newPlayerToken();
     const { data: player, error: playerError } = await db()
       .from(T.players)
-      .insert({ room_id: room.id, nickname, token_hash: hashToken(token), device_hash: hashDeviceId(body.deviceId), is_host: true })
+      .insert({ room_id: room.id, nickname, token_hash: hashToken(token), device_hash: hashDeviceId(body.deviceId), is_host: true, seat: 0 })
       .select("id")
       .single();
     if (playerError) throw playerError;

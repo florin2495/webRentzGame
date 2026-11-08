@@ -21,6 +21,7 @@ import { notifyRoom } from "./broadcast";
 import { hashToken } from "./crypto";
 import { db, PLAYER_COLUMNS, type PlayerRow, ROOM_COLUMNS, type RoomRow, T } from "./db";
 import { fail } from "./http";
+import { reportLeaderboard } from "./leaderboard";
 import { enforceExpiredKicks } from "./membership";
 
 const GONE = `Camera nu există sau a fost închisă după ${minutesLabel(ROOM_IDLE_MINUTES)} de inactivitate.`;
@@ -110,7 +111,8 @@ export function requireStatus(room: RoomRow, ...allowed: RoomRow["status"][]) {
   }
 }
 
-export async function listPlayers(roomId: string): Promise<PlayerRow[]> {
+/** Every member of the room (players and spectators), in join order. */
+export async function listMembers(roomId: string): Promise<PlayerRow[]> {
   const { data, error } = await db()
     .from(T.players)
     .select(PLAYER_COLUMNS)
@@ -118,6 +120,26 @@ export async function listPlayers(roomId: string): Promise<PlayerRow[]> {
     .order("joined_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as PlayerRow[];
+}
+
+/** Players in table order (seat, then join order). The order the next match is dealt in. */
+export async function listPlayers(roomId: string): Promise<PlayerRow[]> {
+  return sortBySeat((await listMembers(roomId)).filter((p) => p.role === "player"));
+}
+
+export function sortBySeat(players: PlayerRow[]): PlayerRow[] {
+  return [...players].sort((a, b) => (a.seat ?? 1e9) - (b.seat ?? 1e9) || a.joined_at.localeCompare(b.joined_at));
+}
+
+/** Spectators waiting for the next match, in queue order. */
+export function queuedSpectators(members: PlayerRow[]): PlayerRow[] {
+  return members
+    .filter((p) => p.role === "spectator" && p.queued_at !== null)
+    .sort((a, b) => (a.queued_at ?? "").localeCompare(b.queued_at ?? ""));
+}
+
+export function requirePlayer(player: PlayerRow) {
+  if (player.role !== "player") fail(403, "Ești spectator: poți doar urmări jocul.");
 }
 
 /**
@@ -142,6 +164,22 @@ export async function saveMatch(room: RoomRow, match: Match, kind: string): Prom
     .select("id");
   if (error) throw error;
   if (!data || data.length === 0) fail(409, "Altcineva a jucat între timp. Mai încearcă o dată.");
+  if (over && match.endReason === "complete") {
+    const top = Math.max(...match.scores);
+    await reportLeaderboard(
+      room.code,
+      room.round,
+      match.names.map((nickname, i) => ({ nickname, won: match.scores[i] === top })),
+    );
+  }
+  if (over && match.endReason === "complete") {
+    const top = Math.max(...match.scores);
+    await reportLeaderboard(
+      room.code,
+      room.round,
+      match.names.map((nickname, i) => ({ nickname, won: match.scores[i] === top })),
+    );
+  }
   await notifyRoom(room.id, kind);
 }
 
@@ -159,7 +197,9 @@ export async function matchAction(
   requireStatus(ctx.room, "playing");
   const match = ctx.room.match;
   if (!match) fail(409, "Meciul nu a început.");
+  requirePlayer(ctx.player);
   const seat = match.seats.indexOf(ctx.player.id);
+  if (seat < 0) fail(403, "Nu participi la acest meci.");
   let next: Match;
   try {
     next = apply(match, seat, ctx);
@@ -177,6 +217,8 @@ const toPublic = (p: PlayerRow, now: number): PublicPlayer => ({
   isHost: p.is_host,
   kickRemainingMs: kickRemainingMs(p.kick_requested_at, now),
   connected: isConnected(p.last_seen_at, now),
+  role: p.role,
+  queued: p.queued_at !== null,
 });
 
 export function viewMatch(m: Match, playerId: string): MatchView {
@@ -214,7 +256,9 @@ export function viewMatch(m: Match, playerId: string): MatchView {
 }
 
 export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomState> {
-  const players = await listPlayers(room.id);
+  const members = await listMembers(room.id);
+  const players = sortBySeat(members.filter((p) => p.role === "player"));
+  const spectators = members.filter((p) => p.role === "spectator");
   let ordered = players;
   if (room.match) {
     const pos = new Map(room.match.seats.map((id, i) => [id, i]));
@@ -233,6 +277,7 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
       winnerPlayerId: room.winner_player_id,
     },
     players: ordered.map((p) => toPublic(p, now)),
+    spectators: [...queuedSpectators(spectators), ...spectators.filter((p) => p.queued_at === null)].map((p) => toPublic(p, now)),
     me: toPublic(me, now),
     match: room.match ? viewMatch(room.match, me.id) : null,
   };

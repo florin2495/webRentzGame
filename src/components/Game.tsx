@@ -341,6 +341,7 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
         </Button>
       )}
       {over && !isHost && <p className="text-center text-sm text-zinc-500">Host-ul poate porni un meci nou.</p>}
+      {me.role === "spectator" && !over && <p className="text-center text-xs text-zinc-500">Urmărești meciul ca spectator.</p>}
 
       <ErrorText>{error}</ErrorText>
 

@@ -10,6 +10,9 @@ export interface PublicPlayer {
   kickRemainingMs: number | null;
   /** Seen in the last 45 s (see lib/reconnect.ts). False = phone in the background, closed tab, no network. */
   connected: boolean;
+  role: "player" | "spectator";
+  /** Spectator waiting for the next match ("Intră la runda următoare" pressed). */
+  queued: boolean;
 }
 
 /** The match as one player may see it: own hand only, everything else is public. Seats are indexes into `seats`. */
@@ -60,6 +63,8 @@ export interface RoomState {
   };
   /** Seat order while a match exists, join order in the lobby. */
   players: PublicPlayer[];
+  /** Spectators (at most MAX_SPECTATORS): queued ones first, in queue order. */
+  spectators: PublicPlayer[];
   me: PublicPlayer;
   match: MatchView | null;
 }
