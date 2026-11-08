@@ -24,6 +24,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | `supabase/schema.sql` (initial) | yes (2026-11-07, verified by a full E2E match on production) | `rentz_rooms` (match as jsonb + version), `rentz_players` |
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `rentz_players.kick_requested_at timestamptz` (pending kick, 10 s to press "Ignoră"). Do not push the kick-with-ignore code before it runs: every player query selects the column. |
 | `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `rentz_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push before it is applied: every player query selects `last_seen_at`. |
+| `supabase/migrations/003_spectators_seats.sql` | **NO, to run by hand** | `rentz_players.role` ('player'/'spectator'), `seat` (host-controlled table order), `queued_at` ("Intră la runda următoare" queue). Do not push before it is applied: every player query selects these columns. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, and the same change folded
@@ -41,6 +42,10 @@ Rules for schema changes:
   re-joining with an existing nickname reclaims that seat (same player id, new token, pending kick cleared) from the
   same device (`device_hash`) or once the seat has been unseen for 45 s, also mid-match. `/state` exposes only a
   derived `connected` flag ("deconectat" badge).
+- Spectators / seats (feedback plan contracts A+B): joining a room whose match already runs makes a spectator (max 16, `rentz_players.role`).
+  `POST /reorder` (host, lobby only) saves `seat`; `start` deals in seat order; `new-round` rotates the order by one and seats queued
+  spectators (`POST /queue` toggles `queued_at`) in queue order while seats are free. Spectators get the public `/state` (no hand) and
+  `matchAction` refuses them. Leaderboard: `saveMatch` reports a complete match to the hub's `hub_leaderboard*` (best effort, idempotent).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.
 
