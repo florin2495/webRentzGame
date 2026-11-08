@@ -217,11 +217,7 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
       {/* Table */}
       {!over && (
         <Card className="bg-emerald-50 dark:bg-emerald-950/40">
-          <ul className={`grid gap-2 ${n === 4 ? "grid-cols-3" : "grid-cols-2"}`}>
-            {others.map((s) => (
-              <SeatChip key={s} m={m} seat={s} connected={state.players.find((p) => p.id === m.seats[s])?.connected} />
-            ))}
-          </ul>
+          <TableSeats m={m} others={others} players={state.players} />
 
           {m.game === "rentz" ? (
             <div className="mt-3 flex flex-col gap-1.5">
@@ -380,6 +376,36 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
   );
 }
 
+/**
+ * Seats around the table, me at the bottom (my hand), play order clockwise = next players on my left.
+ * 3: left 1, right 1 | 4: left 1, top 1, right 1 | 5: left 1, top 2, right 1 | 6: left 2, top 1, right 2 (stacked).
+ * `others` = seats after mine in play order.
+ */
+function TableSeats({ m, others, players }: { m: MatchView; others: number[]; players: RoomState["players"] }) {
+  const o = others;
+  const split =
+    o.length === 2
+      ? { left: [o[0]], top: [], right: [o[1]] }
+      : o.length === 3
+        ? { left: [o[0]], top: [o[1]], right: [o[2]] }
+        : o.length === 4
+          ? { left: [o[0]], top: [o[1], o[2]], right: [o[3]] }
+          : { left: [o[1], o[0]], top: [o[2]], right: [o[3], o[4]] };
+  const chip = (s: number) => <SeatChip key={s} m={m} seat={s} connected={players.find((p) => p.id === m.seats[s])?.connected} />;
+  return (
+    <div className="flex flex-col gap-2">
+      {split.top.length > 0 && <ul className="mx-auto flex w-full max-w-[18rem] justify-center gap-2 [&>li]:min-w-0 [&>li]:flex-1">{split.top.map(chip)}</ul>}
+      <div className="flex items-center justify-between gap-2">
+        <ul className="flex w-[42%] flex-col gap-2">{split.left.map(chip)}</ul>
+        <span aria-hidden className="text-xl text-emerald-700/60 dark:text-emerald-300/50" title="sens orar">
+          ↻
+        </span>
+        <ul className="flex w-[42%] flex-col gap-2">{split.right.map(chip)}</ul>
+      </div>
+    </div>
+  );
+}
+
 function SeatChip({ m, seat, connected }: { m: MatchView; seat: number; connected: boolean | undefined }) {
   const acting = m.acting === seat;
   const place = m.finished.indexOf(seat);
@@ -400,6 +426,11 @@ function SeatChip({ m, seat, connected }: { m: MatchView; seat: number; connecte
         {m.game === "rentz" && place >= 0 && ` · locul ${place + 1} (+${rentzPoints(m.seats.length)[place]})`}
         {m.game === "rentz" && place < 0 && passed && " · pas"}
       </span>
+      {m.chooser === seat && (
+        <span className="mx-auto mt-0.5 block w-fit rounded-full bg-amber-300 px-1.5 text-[9px] font-bold uppercase text-amber-950">
+          {m.phase === "choosing" ? "alege" : "a ales"}
+        </span>
+      )}
       {m.refused[seat] && <span className="block text-[10px] text-amber-600">refuz folosit</span>}
       <OfflineBadge connected={connected} />
     </li>
