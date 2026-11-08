@@ -40,16 +40,24 @@ function fixed(hands: string[][], game: Match["game"], start: Match["rentzStart"
 }
 
 describe("deck", () => {
-  it("uses the top 2N ranks: 24 cards for 3 players, 32 for 4", () => {
+  it("uses the top 2N ranks: 24 cards for 3 players, 32 for 4, 40 for 5, 48 for 6", () => {
     expect(ranksFor(3)).toEqual(["9", "T", "J", "Q", "K", "A"]);
     expect(deckFor(3)).toHaveLength(24);
     expect(deckFor(4)).toHaveLength(32);
+    expect(ranksFor(5)).toEqual(["5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]);
+    expect(deckFor(5)).toHaveLength(40);
+    expect(ranksFor(6)).toHaveLength(12);
+    expect(ranksFor(6)[0]).toBe("3");
+    expect(deckFor(6)).toHaveLength(48);
   });
 
-  it("deals 8 distinct cards to everyone", () => {
-    const hands = dealHands(4, seeded(7));
-    expect(hands.every((h) => h.length === 8)).toBe(true);
-    expect(new Set(hands.flat()).size).toBe(32);
+  it("deals 8 distinct cards to everyone (3 to 6 players)", () => {
+    for (const n of [3, 4, 5, 6]) {
+      const hands = dealHands(n, seeded(7));
+      expect(hands).toHaveLength(n);
+      expect(hands.every((h) => h.length === 8)).toBe(true);
+      expect(new Set(hands.flat()).size).toBe(8 * n);
+    }
   });
 });
 
@@ -140,6 +148,20 @@ describe("rentz", () => {
   });
 });
 
+describe("5 and 6 players", () => {
+  it("a match has 7 games per player and rejects 2 or 7 players", () => {
+    expect(newMatch(ids(5), ids(5), seeded(3)).totalDeals).toBe(35);
+    expect(newMatch(ids(6), ids(6), seeded(3)).totalDeals).toBe(42);
+    expect(() => newMatch(ids(2), ids(2))).toThrow(RulesError);
+    expect(() => newMatch(ids(7), ids(7))).toThrow(RulesError);
+  });
+
+  it("rentz points go 100 x players down to 100", () => {
+    expect(rentzPoints(6)).toEqual([600, 500, 400, 300, 200, 100]);
+    expect(rentzPoints(5)).toEqual([500, 400, 300, 200, 100]);
+  });
+});
+
 describe("refusal", () => {
   it("each player can refuse once, only before the first card is played", () => {
     let m = newMatch(ids(4), ids(4), seeded(3));
@@ -167,7 +189,7 @@ describe("refusal", () => {
 });
 
 describe("full matches (random legal play)", () => {
-  for (const n of [3, 4]) {
+  for (const n of [3, 4, 5, 6]) {
     for (const seed of [11, 22, 33]) {
       it(`${n} players, seed ${seed}: every seat chooses every game once and points add up`, () => {
         const random = seeded(seed);

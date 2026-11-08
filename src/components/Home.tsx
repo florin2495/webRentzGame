@@ -84,7 +84,7 @@ export function Home() {
           Rentz <span className="text-rose-600">♥</span>
           <span>♠</span>
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">Rentz-ul clasic, în 3 sau 4 prieteni, pe telefon.</p>
+        <p className="mt-1 text-sm text-zinc-500">Rentz-ul clasic, în 3 până la 6 prieteni, pe telefon.</p>
       </header>
 
       <RejoinCards onRejoin={(c) => router.push(`/room/${c}`)} />

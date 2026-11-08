@@ -6,7 +6,10 @@ export function Rules({ open = false }: { open?: boolean }) {
     <details open={open} className="text-sm text-zinc-600 dark:text-zinc-400">
       <summary className="cursor-pointer font-semibold">Reguli</summary>
       <ol className="mt-2 list-decimal space-y-1 pl-5">
-        <li>3 sau 4 jucători, câte 8 cărți fiecare (în 3 se joacă de la 9 în sus, în 4 de la 7 în sus).</li>
+        <li>
+          3 până la 6 jucători, câte 8 cărți fiecare. Se joacă doar cu cărțile mari, ca să iasă împărțirea exactă: în 3 de la 9 în sus,
+          în 4 de la 7, în 5 de la 5, în 6 de la 3 în sus.
+        </li>
         <li>
           La fiecare mână, un jucător se uită în cărți și <b>alege jocul</b>. Fiecare alege fiecare joc o singură dată, deci
           un meci are 7 mâini × numărul de jucători.
@@ -24,7 +27,7 @@ export function Rules({ open = false }: { open?: boolean }) {
             <b>{GAME_INFO[g].name}:</b> {GAME_INFO[g].rule}
           </li>
         ))}
-        <li className="text-xs">Rentz: în 4 jucători 400 / 300 / 200 / 100, în 3 jucători 300 / 200 / 100.</li>
+        <li className="text-xs">Rentz: locul 1 ia 100 × numărul de jucători, apoi scade din 100 în 100 (în 4 jucători 400 / 300 / 200 / 100, în 6 jucători 600 … 100).</li>
       </ul>
     </details>
   );

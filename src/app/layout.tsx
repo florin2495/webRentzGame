@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Rentz",
-  description: "Rentz clasic, în 3 sau 4 prieteni, pe telefon.",
+  description: "Rentz clasic, în 3 până la 6 prieteni, pe telefon.",
   applicationName: "Rentz",
   // Not auto-prefixed with basePath, hence the explicit "/rentz" (Turbopack also does not prefix apple-icon.tsx).
   icons: {

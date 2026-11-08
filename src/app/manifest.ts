@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Rentz",
     short_name: "Rentz",
-    description: "Rentz clasic, în 3 sau 4 prieteni, pe telefon.",
+    description: "Rentz clasic, în 3 până la 6 prieteni, pe telefon.",
     id: "/rentz/",
     start_url: "/rentz/",
     // "/" on purpose: going back to the hub (same origin) stays inside the installed app.

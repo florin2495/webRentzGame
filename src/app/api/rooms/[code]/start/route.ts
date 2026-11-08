@@ -5,7 +5,7 @@ import { clearPendingKicks } from "@/lib/server/membership";
 import { fail, handle } from "@/lib/server/http";
 import { listPlayers, requireHost, requireMember, requireStatus, serverRandom } from "@/lib/server/room";
 
-// POST /api/rooms/[code]/start - host only, 3-4 players. Deals the first hand.
+// POST /api/rooms/[code]/start - host only, 3-6 players. Deals the first hand.
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/start">) {
   return handle(async () => {
     const { code } = await ctx.params;

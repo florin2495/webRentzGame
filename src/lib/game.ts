@@ -3,7 +3,7 @@
 // Match -> Match, so the server can apply it and store it with an optimistic version check.
 
 export const MIN_PLAYERS = 3;
-export const MAX_PLAYERS = 4;
+export const MAX_PLAYERS = 6;
 /** Spectators per room (feedback plan contract B). */
 export const MAX_SPECTATORS = 16;
 export const HAND_SIZE = 8;
@@ -37,14 +37,14 @@ export function isRoomExpired(status: string, lastActivityAt: string | Date, now
 export type Suit = "S" | "H" | "C" | "D";
 /** Display / sort order: alternating colours. */
 export const SUITS: readonly Suit[] = ["S", "H", "C", "D"];
-export const RANKS = ["7", "8", "9", "T", "J", "Q", "K", "A"] as const;
+export const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"] as const;
 export type Rank = (typeof RANKS)[number];
 /** Rank char + suit char, e.g. "QH" (damă de inimă), "TS" (10 de pică). */
 export type Card = string;
 
 export const SUIT_SYMBOL: Record<Suit, string> = { S: "♠", H: "♥", C: "♣", D: "♦" };
 export const SUIT_NAME: Record<Suit, string> = { S: "pică", H: "inimă roșie", C: "treflă", D: "caro" };
-export const RANK_LABEL: Record<Rank, string> = { "7": "7", "8": "8", "9": "9", T: "10", J: "J", Q: "Q", K: "K", A: "A" };
+export const RANK_LABEL: Record<Rank, string> = { "2": "2", "3": "3", "4": "4", "5": "5", "6": "6", "7": "7", "8": "8", "9": "9", T: "10", J: "J", Q: "Q", K: "K", A: "A" };
 
 export const rankOf = (c: Card) => c[0] as Rank;
 export const suitOf = (c: Card) => c[1] as Suit;
@@ -56,7 +56,10 @@ export function isCard(c: unknown): c is Card {
   return typeof c === "string" && c.length === 2 && (RANKS as readonly string[]).includes(c[0]) && SUITS.includes(c[1] as Suit);
 }
 
-/** Ranks in play: the top 2N of every suit, so each of the N players gets 8 cards (3 players: 9-A, 4 players: 7-A). */
+/**
+ * Ranks in play: the top 2N of every suit, so each of the N players gets exactly 8 cards.
+ * 3 players: 9-A (24 cards), 4: 7-A (32), 5: 6-A (40), 6: 3-A (48). The low cards are simply left out.
+ */
 export function ranksFor(players: number): Rank[] {
   return RANKS.slice(RANKS.length - 2 * players);
 }
