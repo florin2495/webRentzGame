@@ -20,7 +20,7 @@ import {
   type GameId,
   type Rank,
 } from "@/lib/game";
-import type { MatchView, RoomState } from "@/lib/types";
+import type { MatchActionResult, MatchView, RoomState } from "@/lib/types";
 import { OfflineBadge, PlayerList } from "./PlayerList";
 import { PlayingCard } from "./PlayingCard";
 import { Scoreboard } from "./Scoreboard";
@@ -30,7 +30,17 @@ interface Props {
   state: RoomState;
   token: string;
   refresh: () => Promise<void>;
+  /** Applies a confirmed or optimistic change to the screen state without a /state round trip. */
+  patch: (fn: (s: RoomState) => RoomState) => void;
   kickLeft: (playerId: string) => number | null;
+}
+
+/** Optimistic local effect of playing `card`: it leaves my hand and nothing else is playable until the answer. */
+function dropCard(s: RoomState, card: CardCode): RoomState {
+  const m = s.match;
+  if (!m) return s;
+  const handCounts = m.handCounts.map((c, i) => (i === m.mySeat ? Math.max(0, c - 1) : c));
+  return { ...s, match: { ...m, hand: m.hand.filter((c) => c !== card), legal: [], handCounts } };
 }
 
 const fmt = (n: number) => (n > 0 ? `+${n}` : `${n}`);
@@ -59,7 +69,7 @@ function takenSummary(m: MatchView, seat: number): string {
   }
 }
 
-export function Game({ state, token, refresh, kickLeft }: Props) {
+export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   const { room, me } = state;
   const m = state.match!;
   const base = `/api/rooms/${room.code}`;
@@ -84,17 +94,19 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
     if (soundOn && !over && m.acting === m.mySeat) playTurnChime();
   }, [soundOn, over, m.acting, m.mySeat, m.deal, m.phase]);
 
-  async function run(key: string, path: string, body: unknown = {}) {
+  async function run(key: string, path: string, body: unknown = {}, optimistic?: (s: RoomState) => RoomState) {
     unlockAudio();
     setBusy(key);
     setError("");
+    if (optimistic) patch(optimistic); // my own move shows at once; rolled back below on error
     try {
-      await api(`${base}/${path}`, { token, body });
+      const res = await api<MatchActionResult>(`${base}/${path}`, { token, body });
       setSelected(null);
-      await refresh();
+      // The answer carries my new view: no /state afterwards.
+      patch((s) => ({ ...s, room: { ...s.room, status: res.status }, match: res.match }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
-      await refresh();
+      await refresh(); // server truth replaces the optimistic change
     } finally {
       setBusy(null);
     }
@@ -107,7 +119,7 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
       setSelected(card);
       return;
     }
-    void run("play", "play", { card });
+    void run("play", "play", { card }, (s) => dropCard(s, card));
   }
 
   const legal = new Set(m.legal);
@@ -151,14 +163,10 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
               {iChoose
                 ? "Uită-te în cărți și alege jocul"
                 : myTurn
-                  ? m.game === "rentz"
-                    ? "E rândul tău: pune o carte"
-                    : m.trick.length === 0
-                      ? "E rândul tău: deschide"
-                      : "E rândul tău: răspunde"
+                  ? "Tura ta"
                   : m.phase === "choosing"
                     ? `Așteptăm alegerea lui ${name(m.chooser)}`
-                    : `Rândul lui ${name(m.acting)}`}
+                    : `Tura lui ${name(m.acting)}`}
             </p>
             {refusalNow && (
               <p role="status" className="mt-2 rounded-lg bg-amber-100 px-3 py-1.5 text-center text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -293,7 +301,7 @@ export function Game({ state, token, refresh, kickLeft }: Props) {
             </div>
           )}
           {confirmPlay && myTurn && selected && legal.has(selected) && (
-            <Button className="mt-3 w-full" disabled={busy !== null} onClick={() => void run("play", "play", { card: selected })}>
+            <Button className="mt-3 w-full" disabled={busy !== null} onClick={() => void run("play", "play", { card: selected }, (s) => dropCard(s, selected))}>
               {busy === "play" ? "Se joacă…" : `Joacă ${cardLabel(selected)}`}
             </Button>
           )}

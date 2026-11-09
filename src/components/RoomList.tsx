@@ -7,7 +7,7 @@ import type { RoomListItem } from "@/lib/types";
 
 const POLL_MS = 10_000;
 
-/** Public list of joinable rooms (lobby, not idle). Tap one to select it. */
+/** Public list of every live room (lobby and running matches). Tap one to select it. */
 export function RoomList({
   selected,
   onSelect,
@@ -19,14 +19,18 @@ export function RoomList({
 }) {
   const [rooms, setRooms] = useState<RoomListItem[] | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api<{ rooms: RoomListItem[] }>("/api/rooms");
       setRooms(res.rooms);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -40,18 +44,57 @@ export function RoomList({
     };
   }, [load]);
 
+  const header = (
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <h2 className="font-bold">Camere disponibile</h2>
+      <button
+        type="button"
+        onClick={() => void load()}
+        aria-label="Reîncarcă camerele"
+        title="Reîncarcă camerele"
+        className="flex size-9 items-center justify-center rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className={loading ? "animate-spin" : ""}
+        >
+          <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+          <path d="M21 3v6h-6" />
+        </svg>
+      </button>
+    </div>
+  );
+
   if (rooms === null) {
-    return <p className="py-4 text-center text-sm text-zinc-500">{error || "Caut camere…"}</p>;
+    return (
+      <>
+        {header}
+        <p className="py-4 text-center text-sm text-zinc-500">{error || "Caut camere…"}</p>
+      </>
+    );
   }
   if (rooms.length === 0) {
     return (
-      <p className="py-4 text-center text-sm text-zinc-500">
-        Nicio cameră deschisă acum. Creează una sau introdu un cod mai jos.
-      </p>
+      <>
+        {header}
+        <p className="py-4 text-center text-sm text-zinc-500">
+          Nicio cameră deschisă acum. Creează una sau introdu un cod mai jos.
+        </p>
+      </>
     );
   }
 
   return (
+    <>
+    {header}
     <ul className="flex flex-col gap-2">
       {rooms.map((r) => {
         const mine = parseSession(readSessionRaw(r.code)) !== null;
@@ -73,14 +116,23 @@ export function RoomList({
                   {r.name}
                 </span>
                 <span className="block text-xs text-zinc-500">
+                  <span
+                    className={`mr-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                      r.inGame
+                        ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+                        : "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                    }`}
+                  >
+                    {r.inGame ? "În joc" : "Lobby"}
+                  </span>
                   {r.players}/{MAX_PLAYERS} {r.players === 1 ? "jucător" : "jucători"}
-                  {r.players >= MAX_PLAYERS ? " · plină" : ""}
+                  {!r.inGame && r.players >= MAX_PLAYERS ? " · plină" : ""}
                 </span>
               </span>
               <span className="shrink-0 text-right">
                 <span className="block font-mono text-sm font-bold tracking-widest">{r.code}</span>
                 <span className="block text-[10px] font-semibold uppercase text-indigo-600 dark:text-indigo-400">
-                  {mine ? "Reintră" : "Join"}
+                  {mine ? "Reintră" : r.inGame ? "Urmărește" : "Join"}
                 </span>
               </span>
             </button>
@@ -88,5 +140,6 @@ export function RoomList({
         );
       })}
     </ul>
+    </>
   );
 }

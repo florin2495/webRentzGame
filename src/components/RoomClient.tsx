@@ -57,18 +57,22 @@ function useRoomState(code: string, token: string) {
   const [stateAt, setStateAt] = useState(0); // when `state` arrived: base of the local kick countdown
   const [error, setError] = useState("");
   const [missing, setMissing] = useState(false);
-  const latest = useRef(0);
+  const latest = useRef(0); // id of the last request started
+  const applied = useRef(0); // id of the request (or local patch) the screen shows
 
   const refresh = useCallback(async () => {
     const id = ++latest.current;
     try {
       const s = await api<RoomState>(`/api/rooms/${code}/state`, { token });
-      if (id !== latest.current) return; // a newer request already answered
+      // Show any answer newer than what is on screen. Waiting for the *latest* request instead made
+      // every action wait for a second /state (broadcast refresh + post-action refresh).
+      if (id <= applied.current) return;
+      applied.current = id;
       setState(s);
       setStateAt(Date.now());
       setError("");
     } catch (err) {
-      if (id !== latest.current) return;
+      if (id <= applied.current) return;
       if (err instanceof ApiRequestError && err.status === 401) {
         // Another tab may already hold a newer token for this room (seat reclaimed): keep that one.
         if (parseSession(readSessionRaw(code))?.token !== token) return;
@@ -81,6 +85,15 @@ function useRoomState(code: string, token: string) {
       }
     }
   }, [code, token]);
+
+  /**
+   * Applies a change the server just confirmed (or my own move, optimistically) without a /state round trip.
+   * Answers to /state requests started before it are older than the patch, so they are dropped.
+   */
+  const patch = useCallback((fn: (s: RoomState) => RoomState) => {
+    applied.current = latest.current;
+    setState((s) => (s ? fn(s) : s));
+  }, []);
 
   // Bumping this tears the Realtime channel down and subscribes again (phones kill sockets in the background).
   const [reconnectKey, setReconnectKey] = useState(0);
@@ -141,11 +154,11 @@ function useRoomState(code: string, token: string) {
     };
   }, [roomId, refresh, reconnectKey]);
 
-  return { state, stateAt, error, missing, refresh };
+  return { state, stateAt, error, missing, refresh, patch };
 }
 
 function Room({ code, token }: { code: string; token: string }) {
-  const { state, stateAt, error, missing, refresh } = useRoomState(code, token);
+  const { state, stateAt, error, missing, refresh, patch } = useRoomState(code, token);
   const kickLeft = useKickCountdown(state, stateAt, refresh);
 
   if (missing) {
@@ -181,7 +194,7 @@ function Room({ code, token }: { code: string; token: string }) {
       {state.room.status === "lobby" || !state.match ? (
         <Lobby state={state} token={token} refresh={refresh} />
       ) : (
-        <Game key={state.room.round} state={state} token={token} refresh={refresh} kickLeft={kickLeft} />
+        <Game key={state.room.round} state={state} token={token} refresh={refresh} patch={patch} kickLeft={kickLeft} />
       )}
       {state.me.kickRemainingMs !== null && (
         <KickModal code={code} token={token} seconds={kickLeft(state.me.id) ?? 0} refresh={refresh} />

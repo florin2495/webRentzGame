@@ -16,7 +16,7 @@ import {
 } from "@/lib/game";
 import { kickRemainingMs } from "@/lib/kick";
 import { isConnected, LAST_SEEN_TOUCH_MS } from "@/lib/reconnect";
-import type { MatchView, PublicPlayer, RoomState } from "@/lib/types";
+import type { MatchActionResult, MatchView, PublicPlayer, RoomState } from "@/lib/types";
 import { notifyRoom } from "./broadcast";
 import { hashToken } from "./crypto";
 import { db, PLAYER_COLUMNS, type PlayerRow, ROOM_COLUMNS, type RoomRow, T } from "./db";
@@ -192,7 +192,7 @@ export async function matchAction(
   code: string,
   kind: string,
   apply: (match: Match, seat: number, ctx: { room: RoomRow; player: PlayerRow }) => Match,
-): Promise<{ ok: true }> {
+): Promise<MatchActionResult> {
   const ctx = await requireMember(req, code);
   requireStatus(ctx.room, "playing");
   const match = ctx.room.match;
@@ -208,7 +208,8 @@ export async function matchAction(
     throw err;
   }
   await saveMatch(ctx.room, next, kind);
-  return { ok: true };
+  // The caller's new view comes back with the answer, so the client needs no /state afterwards.
+  return { ok: true, status: next.phase === "over" ? "finished" : "playing", match: viewMatch(next, ctx.player.id) };
 }
 
 const toPublic = (p: PlayerRow, now: number): PublicPlayer => ({

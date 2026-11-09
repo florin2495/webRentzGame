@@ -6,15 +6,16 @@ import { cleanText, fail, handle, isUniqueViolation, readJson } from "@/lib/serv
 import { cleanupExpiredRooms } from "@/lib/server/room";
 import type { RoomListItem } from "@/lib/types";
 
-// GET /api/rooms - public list of rooms that can be joined right now (lobby, not idle).
+// GET /api/rooms - public list of every live room (lobby, running and just-finished matches; idle ones are cleaned up first).
+// Joining a running match makes the newcomer a spectator.
 export async function GET() {
   await connection(); // always request-time, never prerendered at build
   return handle(async () => {
     await cleanupExpiredRooms();
     const { data, error } = await db()
       .from(T.rooms)
-      .select("code, name, password_hash, last_activity_at, players:rentz_players!rentz_players_room_id_fkey(count)")
-      .eq("status", "lobby")
+      .select("code, name, status, password_hash, last_activity_at, players:rentz_players!rentz_players_room_id_fkey(count)")
+      .eq("players.role", "player")
       .order("last_activity_at", { ascending: false })
       .limit(50);
     if (error) throw error;
@@ -22,6 +23,7 @@ export async function GET() {
       code: r.code,
       name: r.name,
       hasPassword: r.password_hash !== null,
+      inGame: r.status !== "lobby",
       players: (r.players as unknown as { count: number }[])[0]?.count ?? 0,
     }));
     return { rooms };

@@ -74,10 +74,20 @@ export interface RoomListItem {
   code: string;
   name: string;
   hasPassword: boolean;
+  /** A match is running: joining makes a spectator. */
+  inGame: boolean;
+  /** Seated players (spectators not counted). */
   players: number;
 }
 
 export interface Session {
   playerId: string;
   token: string;
+}
+
+/** Answer of every in-match action: the caller's new view, so the client needs no /state afterwards. */
+export interface MatchActionResult {
+  ok: true;
+  status: RoomState["room"]["status"];
+  match: MatchView;
 }
