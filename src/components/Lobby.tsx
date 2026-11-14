@@ -53,7 +53,7 @@ export function Lobby({ state, token, refresh }: Props) {
             {players.length}/{MAX_PLAYERS} · minim {MIN_PLAYERS}
           </span>
         </div>
-        <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+        <ul data-testid="lobby-players" className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
           {players.map((p, index) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2">
               <span className="flex min-w-0 items-center gap-2">
@@ -114,7 +114,7 @@ export function Lobby({ state, token, refresh }: Props) {
       <Card>
         {isHost ? (
           <>
-            <Button className="w-full" disabled={!enough || busy !== null} onClick={() => void run("start", "start")}>
+            <Button className="w-full" disabled={!enough || busy !== null} onClick={() => void run("start", "start")} data-testid="start-game">
               {busy === "start" ? "Se împart cărțile…" : "Începe meciul"}
             </Button>
             <p className="mt-2 text-center text-xs text-zinc-500">

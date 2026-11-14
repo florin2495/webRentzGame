@@ -47,6 +47,7 @@ export function SpectatorPanel({ state, token, refresh }: Props) {
             className="mt-2 w-full"
             disabled={busy !== null}
             onClick={() => void run("queue", "queue")}
+            data-testid="queue-toggle"
           >
             {busy === "queue" ? "…" : me.queued ? "✓ Ești în coadă (apasă ca să renunți)" : "Intră la runda următoare"}
           </Button>
@@ -65,7 +66,7 @@ export function SpectatorPanel({ state, token, refresh }: Props) {
               {spectators.length}/{MAX_SPECTATORS}
             </span>
           </h2>
-          <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+          <ul data-testid="spectator-list" className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
             {spectators.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
                 <span className="flex min-w-0 items-center gap-2">

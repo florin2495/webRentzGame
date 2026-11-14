@@ -137,7 +137,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-2 text-xs text-zinc-500">
-              <span>
+              <span data-testid="deal-counter">
                 Mâna {m.deal + 1}/{m.totalDeals}
               </span>
               <span>alege {m.chooser === m.mySeat ? "tu" : name(m.chooser)}</span>
@@ -156,6 +156,10 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
               <h2 className="mt-1 text-xl font-black">{iChoose ? "Alegi jocul" : `${name(m.chooser)} alege jocul…`}</h2>
             )}
             <p
+              data-testid="turn-badge"
+              data-phase={m.phase}
+              data-deal={m.deal}
+              data-acting={m.acting >= 0 ? name(m.acting) : ""}
               className={`mt-2 rounded-lg px-3 py-1.5 text-center text-sm font-semibold ${
                 myTurn || iChoose ? "bg-indigo-600 text-white" : "bg-zinc-100 dark:bg-zinc-900"
               }`}
@@ -185,6 +189,8 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
               <button
                 key={g}
                 type="button"
+                data-testid="game-option"
+                data-game={g}
                 onClick={() => setPickedGame(g)}
                 className={`min-h-12 rounded-lg border-2 px-2 py-1 text-left text-sm font-semibold ${
                   pickedGame === g ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950" : "border-zinc-200 dark:border-zinc-800"
@@ -200,6 +206,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
             <label className="mt-3 flex items-center justify-between gap-2 text-sm font-medium">
               Pornește de la
               <select
+                data-testid="rentz-start"
                 value={start}
                 onChange={(e) => setStart(e.target.value as Rank)}
                 className="min-h-11 rounded-lg border border-zinc-300 bg-white px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
@@ -215,6 +222,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
           <Button
             className="mt-3 w-full"
             disabled={!pickedGame || busy !== null}
+            data-testid="choose-game"
             onClick={() => pickedGame && void run("choose", "choose", { game: pickedGame, start })}
           >
             {busy === "choose" ? "Se alege…" : pickedGame ? `Joacă ${GAME_INFO[pickedGame].name}` : "Alege un joc"}
@@ -287,7 +295,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
           {m.hand.length === 0 ? (
             <p className="py-4 text-center text-sm text-zinc-500">Nu mai ai cărți.</p>
           ) : (
-            <div className="grid grid-cols-8 gap-1">
+            <div data-testid="my-hand" className="grid grid-cols-8 gap-1">
               {m.hand.map((c) => (
                 <PlayingCard
                   key={c}
@@ -311,6 +319,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
               variant="secondary"
               className="mt-3 w-full"
               disabled={busy !== null}
+              data-testid="refuse"
               onClick={() =>
                 window.confirm("Refuzi cărțile? Se împart din nou pentru toți. Ai un singur refuz pe tot meciul.") &&
                 void run("refuse", "refuse")
@@ -340,12 +349,16 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
       )}
 
       {over && isHost && (
-        <Button className="w-full" disabled={busy !== null} onClick={() => void run("new", "new-round")}>
+        <Button className="w-full" disabled={busy !== null} onClick={() => void run("new", "new-round")} data-testid="new-round">
           {busy === "new" ? "Se pregătește…" : "Meci nou"}
         </Button>
       )}
       {over && !isHost && <p className="text-center text-sm text-zinc-500">Host-ul poate porni un meci nou.</p>}
-      {me.role === "spectator" && !over && <p className="text-center text-xs text-zinc-500">Urmărești meciul ca spectator.</p>}
+      {me.role === "spectator" && !over && (
+        <p data-testid="spectator-status" className="text-center text-xs text-zinc-500">
+          Urmărești meciul ca spectator.
+        </p>
+      )}
 
       <ErrorText>{error}</ErrorText>
 
@@ -355,7 +368,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
 
       {lastDeal && !over && (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={() => setSeenDeals(m.history.length)}>
-          <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white p-4 shadow-xl dark:bg-zinc-950">
+          <div role="dialog" aria-modal="true" aria-label="Rezultatul mâinii" data-testid="deal-result" className="w-full max-w-sm rounded-xl bg-white p-4 shadow-xl dark:bg-zinc-950">
             <p className="text-xs text-zinc-500">
               Mâna {lastDeal.deal + 1} · a ales {name(lastDeal.chooser)}
             </p>
@@ -374,7 +387,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
                   </li>
                 ))}
             </ul>
-            <Button className="mt-4 w-full" onClick={() => setSeenDeals(m.history.length)}>
+            <Button className="mt-4 w-full" onClick={() => setSeenDeals(m.history.length)} data-testid="deal-result-ok">
               OK
             </Button>
           </div>
@@ -449,7 +462,7 @@ function FinalBanner({ m }: { m: MatchView }) {
   const best = Math.max(...m.scores);
   const winners = m.scores.map((s, i) => (s === best ? i : -1)).filter((i) => i >= 0);
   return (
-    <div className="text-center">
+    <div className="text-center" data-testid="final-banner" data-end={m.endReason ?? ""}>
       {m.endReason === "abandoned" && (
         <p className="mb-2 rounded-lg bg-amber-100 px-3 py-1.5 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           Meci întrerupt: un jucător a plecat după {m.history.length} din {m.totalDeals} mâini.

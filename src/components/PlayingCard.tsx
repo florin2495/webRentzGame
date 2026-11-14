@@ -38,7 +38,7 @@ export function PlayingCard({ card, size = "md", onClick, playable, dimmed, sele
   );
   if (!onClick) {
     return (
-      <span className="flex flex-col items-center gap-0.5" aria-label={text}>
+      <span className="flex flex-col items-center gap-0.5" aria-label={text} data-card={card}>
         {body}
         {label && <span className="max-w-16 truncate text-[10px] font-semibold text-zinc-500">{label}</span>}
       </span>
@@ -49,6 +49,7 @@ export function PlayingCard({ card, size = "md", onClick, playable, dimmed, sele
       type="button"
       onClick={onClick}
       disabled={!playable}
+      data-card={card}
       aria-label={`${text}${playable ? "" : " (nu se poate juca acum)"}`}
       className="flex justify-center disabled:cursor-default"
     >

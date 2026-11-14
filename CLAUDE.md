@@ -3,7 +3,7 @@
 # webRentzGame - project notes for Claude
 
 ## Accounts and deploy
-- GitHub: personal account **florin2495** only (repo `florin2495/webRentzGame`, private). Never the work account.
+- GitHub: personal account **florin2495** only (repo `florin2495/webRentzGame`, public). Never the work account.
   Local git identity is pinned in `.git/config`.
 - The user connects the repo to Vercel by hand. Once connected, every push to `main` deploys to production.
   Functions run in `fra1` (Frankfurt, `vercel.json`), next to the Supabase DB.
@@ -59,7 +59,48 @@ Rules for schema changes:
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.
 
-## Testing
-- `npm test` (Vitest: rules + full random matches for 3 and 4 players), `npx tsc --noEmit`, `npx eslint src`, `npx next build`.
-- End-to-end: drive the real API with 3-6 players (create, join, 7th refused, start, choose, play, refuse,
-  autoplay, leave mid-match, new-round) against `npm run dev`. Delete the test rooms afterwards.
+## Testing (GitHub Actions, manual only)
+All checks run only in GitHub Actions on the free tier (public repo, standard `ubuntu-latest` runners only, never
+billed / larger / macOS runners), never locally (user's rule, see `D:\_DEv\CLAUDE.md`). Every workflow is
+`workflow_dispatch` only (no automatic trigger, the user's choice): nothing gates a push, and Vercel deploys `main` regardless.
+Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the Actions tab, "Run workflow").
+
+| Workflow | Runs |
+| --- | --- |
+| `.github/workflows/check.yml` "Check code" | `npx next typegen` + `npx tsc --noEmit` (typegen first, so route types in `.next/types` are checked), `npx eslint src`, `npx next build`. Every step runs even if an earlier one failed |
+| `.github/workflows/unit-tests.yml` "Unit tests" | `npm test` (Vitest: `src/lib/game.test.ts` rules + full random matches for 3 and 4 players, `kick.test.ts`, `reconnect.test.ts`; pure logic, no DB) |
+| `.github/workflows/e2e.yml` "E2E" | `node scripts/e2e.mjs <base_url>` (input, default production `https://games.hailatat.icu/rentz`); one run at a time |
+| `.github/workflows/e2e-ui.yml` "E2E UI (Playwright)" | `npx playwright test` (`playwright.config.ts`, tests in `tests/ui/*.e2e.ts`) against `base_url` (`E2E_BASE_URL`, default production), on desktop Chromium and an emulated iPhone 13 (WebKit). Same concurrency group as "E2E". On failure the report (traces, screenshots, videos) is uploaded as the `playwright-report` artifact |
+
+- E2E needs the repo secrets `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (only for the cleanup safety net;
+  locally the script falls back to `.env.local`). It checks that the deployed client JS contains the `package.json`
+  version of the checked-out ref, so run it on `main` after the Vercel deploy of that version has finished.
+- What E2E does (`scripts/e2e.mjs`, Node built-ins only): checks page / `_next` assets / version / manifest / icons /
+  `room/XXXXXX` over HTTP and that `web-rentz-game.vercel.app/rentz` serves the same build, then drives the real API
+  (production DB): create (password), join, wrong / missing password, start with 2 refused, 6 players then the 7th refused,
+  room list, rejoin (saved token, same device, old token dead, mid-match), host reorder, start, private hands (24 distinct
+  cards, no `hands` / tokens / hashes in any state), spectators (join a running room, 403 on every player / host route,
+  queue toggle and order, spectator rejoin), choose rules, refusal (once per match, not after the first card), out-of-turn /
+  foreign / malformed / not-following-suit cards, autoplay (host only, not on his own turn), kick with "Ignoră", three full
+  deals (Regele de inimă −100, Rentz from 9 paying 300/200/100, Whist +400) with the scores adding up, a game cannot be
+  chosen twice, leave mid-match (match abandoned), new round (seats rotated, queued spectators seated), pending kick enforced
+  after 12 s, lobby kick. It never plays a match to its natural end (that would write the hub leaderboard). Rooms are named
+  `e2e-test-…` and deleted at the end; it never calls `/api/feedback`.
+- What E2E UI does (`tests/ui/`, shared steps in `helpers.ts`; Rentz needs 3 players, so 3 browser contexts = 3 devices;
+  every change must reach the other screens within 5 s without a reload, polling is 15 s, so this checks Realtime; cards
+  are random, so each move is the first playable card on screen and the next actor comes from the server's answer):
+  - `game.e2e.ts` (both projects): create, two join by link, start, the host chooses Regele de inimă, the whole deal is
+    played (each actor's "Tura ta" must appear live), deal-result pop-up on every screen, Bob chooses next, a player leaves
+    (match abandoned for the others), new match, leave.
+  - `spectator.e2e.ts` (desktop Chromium only): a 4th person joins mid-match = spectator (no hand, no player buttons), the
+    players see them, queue ("în coadă" seen by the players), follows every turn of a whole deal, sees the stopped match,
+    and the new match seats them.
+  - `mobile.e2e.ts` (iPhone only): no horizontal scroll on home / lobby / match, every hand card and game button >= 24 px,
+    a touch tap chooses Whist and plays a card that the other phones see live.
+  Rooms are `e2e-test-ui-…`; a leftover is deleted with the service key from the same repo secrets.
+- Playwright files are `*.e2e.ts`, never `*.spec.ts` / `*.test.ts` (Vitest would pick those up).
+- The UI tests find elements by `data-testid`: `home-submit`, `join-submit`, `leave`, `lobby-players`, `start-game`,
+  `deal-counter` ("Mâna X/Y"), `turn-badge` (with `data-phase`, `data-deal`, `data-acting` = nickname of who acts),
+  `game-option` (with `data-game` = GameId), `rentz-start`, `choose-game`, `my-hand` (cards carry `data-card`, e.g. "QH";
+  playable ones are enabled buttons), `refuse`, `deal-result` + `deal-result-ok`, `final-banner` (`data-end` =
+  "complete"/"abandoned"), `new-round`, `spectator-status`, `queue-toggle`, `spectator-list`. Renaming or removing one breaks `tests/ui`.
