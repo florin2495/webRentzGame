@@ -33,6 +33,14 @@ Rules for schema changes:
   service key from `.env.local` (a `select` of the new column; note that `head: true` count queries hide a missing table).
 - Never print or commit the keys in `.env.local`.
 
+## Abandoned rooms (120 s)
+- `GET /api/rooms` (the room list behind "Intră în cameră") also runs `cleanupAbandonedRooms` (`src/lib/server/room.ts`):
+  every room in ANY status (also `playing`) whose `last_activity_at` is older than `ROOM_ABANDONED_MS` (120 s, `game.ts`)
+  and with no member (player or spectator, both `rentz_players` rows) `last_seen_at` within 120 s is deleted (players cascade).
+  Open room pages keep both fresh (`/state` polls every 15 s; it touches `last_seen_at` every 10 s and `last_activity_at`
+  every 20 s), so only rooms nobody has open disappear; the room page shows its "room gone" screen on the next 404.
+  The 10-minute lobby/finished and 30-minute playing expiry stay too.
+
 ## Design
 - All rules are pure functions in `src/lib/game.ts` (`Match -> Match`). The whole match, hands included, is one
   jsonb column; each action is applied by `matchAction` in `src/lib/server/room.ts` and saved with

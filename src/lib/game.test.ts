@@ -6,6 +6,7 @@ import {
   dealHands,
   deckFor,
   GAMES,
+  isRoomAbandoned,
   legalCards,
   newMatch,
   playCard,
@@ -14,6 +15,7 @@ import {
   remainingGames,
   rentzPoints,
   rentzRow,
+  ROOM_ABANDONED_MS,
   RulesError,
   type Match,
 } from "./game";
@@ -219,4 +221,20 @@ describe("full matches (random legal play)", () => {
       });
     }
   }
+});
+
+describe("abandoned rooms (any status)", () => {
+  const now = Date.parse("2026-11-14T12:00:00Z");
+  const sec = (s: number) => new Date(now - s * 1000).toISOString();
+  it(`is abandoned after ${ROOM_ABANDONED_MS / 1000} s with nobody seen`, () => {
+    expect(isRoomAbandoned(sec(121), [sec(300), sec(200)], now)).toBe(true);
+    expect(isRoomAbandoned(sec(121), [], now)).toBe(true);
+    expect(isRoomAbandoned(sec(121), [null], now)).toBe(true);
+  });
+  it("is kept while the last activity is recent", () => {
+    expect(isRoomAbandoned(sec(119), [], now)).toBe(false);
+  });
+  it("is kept while any player or spectator was seen recently", () => {
+    expect(isRoomAbandoned(sec(600), [sec(600), sec(30)], now)).toBe(false);
+  });
 });
