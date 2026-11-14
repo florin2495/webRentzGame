@@ -4,7 +4,7 @@ import { isUniqueViolation } from "./http";
 
 const GAME = "rentz";
 
-export const playerKey = (nickname: string) => nickname.trim().toLowerCase();
+export const playerKey = (nickname: string) => nickname.trim().toLowerCase().slice(0, 40);
 
 /**
  * Reports a finished match to the hub's shared leaderboard (tables owned by florin2495/hailataticu-hub,

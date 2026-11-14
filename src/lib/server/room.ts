@@ -201,14 +201,6 @@ export async function saveMatch(room: RoomRow, match: Match, kind: string): Prom
       match.names.map((nickname, i) => ({ nickname, won: match.scores[i] === top })),
     );
   }
-  if (over && match.endReason === "complete") {
-    const top = Math.max(...match.scores);
-    await reportLeaderboard(
-      room.code,
-      room.round,
-      match.names.map((nickname, i) => ({ nickname, won: match.scores[i] === top })),
-    );
-  }
   await notifyRoom(room.id, kind);
 }
 
