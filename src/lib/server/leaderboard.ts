@@ -6,21 +6,27 @@ const GAME = "rentz";
 
 export const playerKey = (nickname: string) => nickname.trim().toLowerCase().slice(0, 40);
 
+/** Rooms created by the e2e tests (scripts/e2e.mjs, tests/ui) never reach the shared leaderboard. */
+export function isTestRoom(roomName: string): boolean {
+  return roomName.startsWith("e2e-test-");
+}
+
 /**
  * Reports a finished match to the hub's shared leaderboard (tables owned by florin2495/hailataticu-hub,
  * migration hub 002_hub_leaderboard.sql). Idempotent per (game, room, round): the hub_leaderboard_rounds row is
  * claimed first, so a match is never counted twice. Best effort: never throws, a failure only logs
  * (this must not break the last move of a match, or the hub migration not being run yet).
+ * Test rooms (isTestRoom) are skipped.
  */
 export async function reportLeaderboard(
-  roomCode: string,
-  roundNo: number,
+  room: { code: string; name: string; round: number },
   players: { nickname: string; won: boolean }[],
 ): Promise<void> {
+  if (isTestRoom(room.name)) return;
   try {
     const { error: claimError } = await db()
       .from("hub_leaderboard_rounds")
-      .insert({ game: GAME, room_code: roomCode, round_no: roundNo });
+      .insert({ game: GAME, room_code: room.code, round_no: room.round });
     if (isUniqueViolation(claimError)) return; // already counted
     if (claimError) throw claimError;
 

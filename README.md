@@ -22,7 +22,7 @@ Next.js 16 (App Router), Supabase (Postgres + Realtime Broadcast), deploy pe Ver
 
 Extra: host-ul poate „juca în locul” unui jucător care nu mai răspunde (mutare permisă, aleasă la întâmplare).
 Dacă un jucător pleacă în timpul meciului, meciul se oprește și rămâne scorul de atunci.
-Camerele din lobby sau terminate se închid după 2 minute în care nu le are nimeni deschise. Meciurile pe care nu le mai are nimeni deschise se închid după 30 de minute.
+Camerele din lobby sau terminate se închid după 10 minute în care nu le are nimeni deschise. Meciurile pe care nu le mai are nimeni deschise se închid după 6 ore.
 
 ## Arhitectură
 
@@ -30,7 +30,7 @@ Camerele din lobby sau terminate se închid după 2 minute în care nu le are ni
   Fiecare mutare se salvează condiționat de `version`, deci două mutări simultane nu pot trece amândouă.
 - Route Handlers cu service role key. Tabelele au RLS fără policy, iar browserul nu le poate citi.
   `/state` trimite fiecăruia doar mâna lui.
-- Live: Supabase Realtime Broadcast pe `room:<uuid>` (doar semnal), apoi refetch la `/state`. Polling la 15 s, ca rezervă.
+- Live: Supabase Realtime Broadcast pe `room:<uuid>` (doar semnal), apoi refetch la `/state`. Polling la 60 s, ca rezervă.
 
 ## Setup
 

@@ -4,7 +4,7 @@
 // and whose turn it is comes from the server's answer to the previous move (the `match` view it returns).
 import { expect, test, type Browser, type BrowserContext, type Page, type Response } from "@playwright/test";
 
-/** A change has to show up on another screen within this, without a reload. Polling alone takes up to 15 s. */
+/** A change has to show up on another screen within this, without a reload. Polling alone takes up to 60 s. */
 export const REALTIME_MS = 5_000;
 
 export interface Player {

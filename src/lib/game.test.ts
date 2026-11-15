@@ -7,6 +7,7 @@ import {
   deckFor,
   GAMES,
   isRoomAbandoned,
+  isRoomExpired,
   legalCards,
   newMatch,
   playCard,
@@ -16,6 +17,7 @@ import {
   rentzPoints,
   rentzRow,
   ROOM_ABANDONED_MS,
+  ROOM_ABANDONED_PLAYING_MS,
   RulesError,
   type Match,
 } from "./game";
@@ -223,18 +225,45 @@ describe("full matches (random legal play)", () => {
   }
 });
 
-describe("abandoned rooms (any status)", () => {
+describe("abandoned rooms", () => {
   const now = Date.parse("2026-11-14T12:00:00Z");
   const sec = (s: number) => new Date(now - s * 1000).toISOString();
-  it(`is abandoned after ${ROOM_ABANDONED_MS / 1000} s with nobody seen`, () => {
-    expect(isRoomAbandoned(sec(121), [sec(300), sec(200)], now)).toBe(true);
-    expect(isRoomAbandoned(sec(121), [], now)).toBe(true);
-    expect(isRoomAbandoned(sec(121), [null], now)).toBe(true);
+  const LIMIT = ROOM_ABANDONED_MS / 1000;
+  const PLAYING_LIMIT = ROOM_ABANDONED_PLAYING_MS / 1000;
+  it("uses 600 s for lobby / finished and 6 h for a running match", () => {
+    expect(ROOM_ABANDONED_MS).toBe(600_000);
+    expect(ROOM_ABANDONED_PLAYING_MS).toBe(6 * 3600_000);
+  });
+  it(`is abandoned after ${LIMIT} s with nobody seen (lobby / finished)`, () => {
+    for (const status of ["lobby", "finished"]) {
+      expect(isRoomAbandoned(status, sec(LIMIT + 1), [sec(LIMIT + 300), sec(LIMIT + 200)], now)).toBe(true);
+      expect(isRoomAbandoned(status, sec(LIMIT + 1), [], now)).toBe(true);
+      expect(isRoomAbandoned(status, sec(LIMIT + 1), [null], now)).toBe(true);
+    }
   });
   it("is kept while the last activity is recent", () => {
-    expect(isRoomAbandoned(sec(119), [], now)).toBe(false);
+    expect(isRoomAbandoned("lobby", sec(LIMIT - 1), [], now)).toBe(false);
   });
   it("is kept while any player or spectator was seen recently", () => {
-    expect(isRoomAbandoned(sec(600), [sec(600), sec(30)], now)).toBe(false);
+    expect(isRoomAbandoned("lobby", sec(LIMIT * 2), [sec(LIMIT * 2), sec(30)], now)).toBe(false);
+  });
+  it("keeps a silent running match for 6 h, then drops it", () => {
+    expect(isRoomAbandoned("playing", sec(LIMIT + 1), [], now)).toBe(false);
+    expect(isRoomAbandoned("playing", sec(PLAYING_LIMIT - 1), [sec(PLAYING_LIMIT - 1)], now)).toBe(false);
+    expect(isRoomAbandoned("playing", sec(PLAYING_LIMIT + 1), [sec(PLAYING_LIMIT + 1), null], now)).toBe(true);
+  });
+});
+
+describe("room expiry", () => {
+  const now = Date.parse("2026-11-14T12:00:00Z");
+  const min = (m: number) => new Date(now - m * 60_000).toISOString();
+  it("closes an idle lobby / finished room after 10 min", () => {
+    expect(isRoomExpired("lobby", min(9), now)).toBe(false);
+    expect(isRoomExpired("finished", min(11), now)).toBe(true);
+  });
+  it("keeps a running match for 6 h", () => {
+    expect(isRoomExpired("playing", min(31), now)).toBe(false);
+    expect(isRoomExpired("playing", min(359), now)).toBe(false);
+    expect(isRoomExpired("playing", min(361), now)).toBe(true);
   });
 });

@@ -22,8 +22,8 @@ export function minutesLabel(n: number): string {
   return `${n} ${n >= 20 ? "de " : ""}${n === 1 ? "minut" : "minute"}`;
 }
 
-/** A match nobody has open any more (every tab closed) is dropped after this long. */
-export const PLAYING_IDLE_MINUTES = 30;
+/** A running match nobody has open any more (every tab closed) is dropped after this long (6 hours). */
+export const PLAYING_IDLE_MINUTES = 360;
 
 export function isRoomExpired(status: string, lastActivityAt: string | Date, now = Date.now()): boolean {
   const limit = status === "playing" ? PLAYING_IDLE_MINUTES : ROOM_IDLE_MINUTES;
@@ -31,20 +31,29 @@ export function isRoomExpired(status: string, lastActivityAt: string | Date, now
 }
 
 /**
- * A room in any status (also "playing") is abandoned once its last activity is older than this AND no
- * player or spectator has been seen within it. Swept every time the room list loads (GET /api/rooms).
+ * A lobby / finished room is abandoned once its last activity is older than this AND no player or
+ * spectator has been seen within it. Swept every time the room list loads (GET /api/rooms).
  */
-export const ROOM_ABANDONED_MS = 120_000;
+export const ROOM_ABANDONED_MS = 600_000;
+/** The same for a running match ("playing"): 6 hours, so a long match is never closed under the players. */
+export const ROOM_ABANDONED_PLAYING_MS = 6 * 3600_000;
+
+/** The abandon limit for a room in this status. */
+export function abandonedLimitMs(status: string): number {
+  return status === "playing" ? ROOM_ABANDONED_PLAYING_MS : ROOM_ABANDONED_MS;
+}
 
 export function isRoomAbandoned(
+  status: string,
   lastActivityAt: string | Date,
   membersLastSeen: (string | Date | null | undefined)[],
   now = Date.now(),
 ): boolean {
+  const limit = abandonedLimitMs(status);
   const recent = (t: string | Date | null | undefined) => {
     if (t === null || t === undefined) return false;
     const ms = new Date(t).getTime();
-    return !Number.isNaN(ms) && now - ms <= ROOM_ABANDONED_MS;
+    return !Number.isNaN(ms) && now - ms <= limit;
   };
   return !recent(lastActivityAt) && !membersLastSeen.some(recent);
 }

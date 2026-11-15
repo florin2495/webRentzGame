@@ -1,6 +1,6 @@
 // Scenario 1: three real browsers (Rentz needs at least 3 players) play a live match on the deployed site: create,
 // join by link, start, the host chooses "Regele de inimă", the whole deal is played card by card (each move reaches
-// the next player through Realtime, well under the 15 s polling fallback), everyone sees the deal result and the
+// the next player through Realtime, well under the 60 s polling fallback), everyone sees the deal result and the
 // next chooser, a player leaves mid-match (match stopped for everyone), the host starts a new match, leave.
 // Runs on every project.
 import { expect, test } from "@playwright/test";

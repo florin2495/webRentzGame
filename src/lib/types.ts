@@ -8,7 +8,7 @@ export interface PublicPlayer {
   isHost: boolean;
   /** Ms left before a pending kick is enforced (0-10000), null when none. Remaining time, not a timestamp: no clock skew. */
   kickRemainingMs: number | null;
-  /** Seen in the last 45 s (see lib/reconnect.ts). False = phone in the background, closed tab, no network. */
+  /** Seen in the last 301 s (see lib/reconnect.ts). False = phone in the background, closed tab, no network. */
   connected: boolean;
   role: "player" | "spectator";
   /** Spectator waiting for the next match ("Intră la runda următoare" pressed). */

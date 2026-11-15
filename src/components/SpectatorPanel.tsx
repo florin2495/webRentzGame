@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client/api";
-import { MAX_SPECTATORS } from "@/lib/game";
 import type { RoomState } from "@/lib/types";
 import { OfflineBadge } from "./PlayerList";
 import { Button, Card, ErrorText } from "./ui";
@@ -61,10 +60,7 @@ export function SpectatorPanel({ state, token, refresh }: Props) {
       {spectators.length > 0 && (
         <>
           <h2 className="mb-1 text-sm font-bold">
-            Spectatori{" "}
-            <span className="font-normal text-zinc-500">
-              {spectators.length}/{MAX_SPECTATORS}
-            </span>
+            Spectatori <span className="font-normal text-zinc-500">{spectators.length}</span>
           </h2>
           <ul data-testid="spectator-list" className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
             {spectators.map((s) => (

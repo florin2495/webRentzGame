@@ -24,7 +24,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | `supabase/schema.sql` (initial) | yes (2026-11-07, verified by a full E2E match on production) | `rentz_rooms` (match as jsonb + version), `rentz_players` |
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `rentz_players.kick_requested_at timestamptz` (pending kick, 10 s to press "Ignoră"). Do not push the kick-with-ignore code before it runs: every player query selects the column. |
 | `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `rentz_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push before it is applied: every player query selects `last_seen_at`. |
-| `supabase/migrations/003_spectators_seats.sql` | yes (run via ALL_MIGRATIONS.sql, 2026-11-08) | `rentz_players.role` ('player'/'spectator'), `seat` (host-controlled table order), `queued_at` ("Intră la runda următoare" queue). Do not push before it is applied: every player query selects these columns. |
+| `supabase/migrations/003_spectators_seats.sql` | yes (run via ALL_MIGRATIONS.sql, 2026-11-08; verified 2026-11-14 by effect: production E2E exercises its columns) | `rentz_players.role` ('player'/'spectator'), `seat` (host-controlled table order), `queued_at` ("Intră la runda următoare" queue). Do not push before it is applied: every player query selects these columns. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, and the same change folded
@@ -33,13 +33,18 @@ Rules for schema changes:
   service key from `.env.local` (a `select` of the new column; note that `head: true` count queries hide a missing table).
 - Never print or commit the keys in `.env.local`.
 
-## Abandoned rooms (120 s)
+## Abandoned rooms (600 s; 6 h for a running match)
 - `GET /api/rooms` (the room list behind "Intră în cameră") also runs `cleanupAbandonedRooms` (`src/lib/server/room.ts`):
-  every room in ANY status (also `playing`) whose `last_activity_at` is older than `ROOM_ABANDONED_MS` (120 s, `game.ts`)
-  and with no member (player or spectator, both `rentz_players` rows) `last_seen_at` within 120 s is deleted (players cascade).
-  Open room pages keep both fresh (`/state` polls every 15 s; it touches `last_seen_at` every 10 s and `last_activity_at`
-  every 20 s), so only rooms nobody has open disappear; the room page shows its "room gone" screen on the next 404.
-  The 10-minute lobby/finished and 30-minute playing expiry stay too.
+  a lobby / finished room whose `last_activity_at` is older than `ROOM_ABANDONED_MS` (600 s, `game.ts`) and with no member
+  (player or spectator, both `rentz_players` rows) `last_seen_at` within 600 s is deleted (players cascade). A running
+  match (`playing`) uses `ROOM_ABANDONED_PLAYING_MS` (6 h) instead, so a long match is never closed under the players
+  (`isRoomAbandoned(status, …)`; the cleanup selects `status`, and each delete re-checks the cutoff of its status).
+  Open room pages keep both fresh (`/state` polls every 60 s; it touches `last_seen_at` at most every 10 s and
+  `last_activity_at` at most every 20 s), so only rooms nobody has open disappear; the room page shows its neutral
+  "room gone" screen on the next 404 ("Camera nu mai există (a fost închisă după inactivitate).").
+  The plain idle expiry (`isRoomExpired`, lazy in `getRoomByCode` + `cleanupExpiredRooms`) stays too: 10 minutes for
+  lobby/finished, 6 hours (`PLAYING_IDLE_MINUTES = 360`) for a running match.
+  Unit-tested with the DB mocked in `src/lib/server/room.test.ts`.
 
 ## Design
 - All rules are pure functions in `src/lib/game.ts` (`Match -> Match`). The whole match, hands included, is one
@@ -48,12 +53,13 @@ Rules for schema changes:
 - `/state` returns `viewMatch(...)`: own hand only, everything else is public (played cards are face up anyway).
 - Rejoin the same seat (`src/lib/reconnect.ts`): every member request stamps `last_seen_at` (at most every 10 s);
   re-joining with an existing nickname reclaims that seat (same player id, new token, pending kick cleared) from the
-  same device (`device_hash`) or once the seat has been unseen for 45 s, also mid-match. `/state` exposes only a
+  same device (`device_hash`) or once the seat has been unseen for 301 s (`DISCONNECT_MS`), also mid-match. `/state` exposes only a
   derived `connected` flag ("deconectat" badge).
 - Spectators / seats (feedback plan contracts A+B): joining a room whose match already runs makes a spectator (max 16, `rentz_players.role`).
   `POST /reorder` (host, lobby only) saves `seat`; `start` deals in seat order; `new-round` rotates the order by one and seats queued
   spectators (`POST /queue` toggles `queued_at`) in queue order while seats are free. Spectators get the public `/state` (no hand) and
-  `matchAction` refuses them. Leaderboard: `saveMatch` reports a complete match to the hub's `hub_leaderboard*` (best effort, idempotent).
+  `matchAction` refuses them. Leaderboard: `saveMatch` reports a complete match to the hub's `hub_leaderboard*` (best effort, idempotent);
+  rooms named `e2e-test-…` never reach it (`isTestRoom` in `leaderboard.ts`).
 - 3-6 players: 8 cards each, deck = top 2N ranks per suit (3: 9-A, 4: 7-A, 5: 5-A, 6: 3-A); 7 games per player so 7N deals; Rentz places pay 100*N..100.
   Table UI (`TableSeats` in `Game.tsx`): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
@@ -68,7 +74,7 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
 | Workflow | Runs |
 | --- | --- |
 | `.github/workflows/check.yml` "Check code" | `npx next typegen` + `npx tsc --noEmit` (typegen first, so route types in `.next/types` are checked), `npx eslint src`, `npx next build`. Every step runs even if an earlier one failed |
-| `.github/workflows/unit-tests.yml` "Unit tests" | `npm test` (Vitest: `src/lib/game.test.ts` rules + full random matches for 3 and 4 players, `kick.test.ts`, `reconnect.test.ts`; pure logic, no DB) |
+| `.github/workflows/unit-tests.yml` "Unit tests" | `npm test` (Vitest, `vitest.config.ts` resolves the `@/` alias: `src/lib/game.test.ts` rules + full random matches for 3 and 4 players, `kick.test.ts`, `reconnect.test.ts`, `server/room.test.ts` (abandoned-room cleanup) and `server/leaderboard.test.ts` (test rooms skipped) with `server-only` and the db module mocked; no real DB) |
 | `.github/workflows/e2e.yml` "E2E" | `node scripts/e2e.mjs <base_url>` (input, default production `https://games.hailatat.icu/rentz`); one run at a time |
 | `.github/workflows/e2e-ui.yml` "E2E UI (Playwright)" | `npx playwright test` (`playwright.config.ts`, tests in `tests/ui/*.e2e.ts`) against `base_url` (`E2E_BASE_URL`, default production), on desktop Chromium and an emulated iPhone 13 (WebKit). Same concurrency group as "E2E". On failure the report (traces, screenshots, videos) is uploaded as the `playwright-report` artifact |
 
@@ -87,7 +93,7 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
   after 12 s, lobby kick. It never plays a match to its natural end (that would write the hub leaderboard). Rooms are named
   `e2e-test-…` and deleted at the end; it never calls `/api/feedback`.
 - What E2E UI does (`tests/ui/`, shared steps in `helpers.ts`; Rentz needs 3 players, so 3 browser contexts = 3 devices;
-  every change must reach the other screens within 5 s without a reload, polling is 15 s, so this checks Realtime; cards
+  every change must reach the other screens within 5 s without a reload, polling is 60 s, so this checks Realtime; cards
   are random, so each move is the first playable card on screen and the next actor comes from the server's answer):
   - `game.e2e.ts` (both projects): create, two join by link, start, the host chooses Regele de inimă, the whole deal is
     played (each actor's "Tura ta" must appear live), deal-result pop-up on every screen, Bob chooses next, a player leaves

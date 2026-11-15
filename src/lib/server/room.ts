@@ -7,10 +7,10 @@ import {
   isRoomExpired,
   leaderSeat,
   legalCards,
-  minutesLabel,
   PLAYING_IDLE_MINUTES,
   remainingGames,
   ROOM_ABANDONED_MS,
+  ROOM_ABANDONED_PLAYING_MS,
   ROOM_IDLE_MINUTES,
   RulesError,
   sortHand,
@@ -26,7 +26,7 @@ import { fail } from "./http";
 import { reportLeaderboard } from "./leaderboard";
 import { enforceExpiredKicks } from "./membership";
 
-const GONE = `Camera nu există sau a fost închisă după ${minutesLabel(ROOM_IDLE_MINUTES)} de inactivitate.`;
+const GONE = "Camera nu mai există (a fost închisă după inactivitate).";
 
 /** Server-side randomness for dealing (crypto, not Math.random). */
 export const serverRandom = () => randomInt(0, 2 ** 32) / 2 ** 32;
@@ -50,7 +50,7 @@ export async function getRoomByCode(code: string): Promise<RoomRow> {
   return room;
 }
 
-/** Deletes idle rooms: lobby/finished after ROOM_IDLE_MINUTES, abandoned matches after PLAYING_IDLE_MINUTES. */
+/** Deletes idle rooms: lobby/finished after ROOM_IDLE_MINUTES (10 min), running matches after PLAYING_IDLE_MINUTES (6 h). */
 export async function cleanupExpiredRooms(): Promise<void> {
   const cutoff = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
   const [a, b] = await Promise.all([
@@ -61,30 +61,37 @@ export async function cleanupExpiredRooms(): Promise<void> {
 }
 
 /**
- * Deletes rooms in ANY status (also "playing") with no activity for ROOM_ABANDONED_MS and no member
- * (player or spectator: both are rentz_players rows) seen within it (see isRoomAbandoned). Players cascade.
+ * Deletes rooms with no activity and no member (player or spectator: both are rentz_players rows) seen
+ * within the abandon limit of their status (see isRoomAbandoned): ROOM_ABANDONED_MS (600 s) for lobby /
+ * finished, ROOM_ABANDONED_PLAYING_MS (6 h) for a running match. Players cascade.
  * Best effort: a failure is logged, never thrown.
  */
 export async function cleanupAbandonedRooms(): Promise<void> {
   const now = Date.now();
   const cutoff = new Date(now - ROOM_ABANDONED_MS).toISOString();
+  const playingCutoff = new Date(now - ROOM_ABANDONED_PLAYING_MS).toISOString();
   const { data, error } = await db()
     .from(T.rooms)
-    .select("id, last_activity_at, players:rentz_players!rentz_players_room_id_fkey(last_seen_at)")
+    .select("id, status, last_activity_at, players:rentz_players!rentz_players_room_id_fkey(last_seen_at)")
     .lt("last_activity_at", cutoff)
+    .or(`status.neq.playing,last_activity_at.lt."${playingCutoff}"`)
     .limit(200);
   if (error) {
     console.error("abandoned cleanup (select) failed", error);
     return;
   }
   type Seen = { last_seen_at: string | null }[] | null;
-  const ids = (data ?? [])
-    .filter((r) => isRoomAbandoned(r.last_activity_at as string, ((r.players as Seen) ?? []).map((m) => m.last_seen_at), now))
-    .map((r) => r.id as string);
-  if (ids.length === 0) return;
-  // Re-check the activity cutoff in the delete itself, so a room touched meanwhile survives.
-  const { error: delError } = await db().from(T.rooms).delete().in("id", ids).lt("last_activity_at", cutoff);
-  if (delError) console.error("abandoned cleanup (delete) failed", delError);
+  const abandoned = (data ?? []).filter((r) =>
+    isRoomAbandoned(r.status as string, r.last_activity_at as string, ((r.players as Seen) ?? []).map((m) => m.last_seen_at), now),
+  );
+  const idsOf = (playing: boolean) => abandoned.filter((r) => (r.status === "playing") === playing).map((r) => r.id as string);
+  // Re-check the activity cutoff in the delete itself, so a room touched (or started) meanwhile survives.
+  const remove = async (ids: string[], before: string) => {
+    if (ids.length === 0) return;
+    const { error: delError } = await db().from(T.rooms).delete().in("id", ids).lt("last_activity_at", before);
+    if (delError) console.error("abandoned cleanup (delete) failed", delError);
+  };
+  await Promise.all([remove(idsOf(false), cutoff), remove(idsOf(true), playingCutoff)]);
 }
 
 /** Records activity on a room, restarting its idle timer. */
@@ -196,8 +203,7 @@ export async function saveMatch(room: RoomRow, match: Match, kind: string): Prom
   if (over && match.endReason === "complete") {
     const top = Math.max(...match.scores);
     await reportLeaderboard(
-      room.code,
-      room.round,
+      room,
       match.names.map((nickname, i) => ({ nickname, won: match.scores[i] === top })),
     );
   }
