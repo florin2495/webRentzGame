@@ -101,10 +101,17 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
     setError("");
     if (optimistic) patch(optimistic); // my own move shows at once; rolled back below on error
     try {
-      const res = await api<MatchActionResult>(`${base}/${path}`, { token, body });
+      const res = await api<Partial<MatchActionResult>>(`${base}/${path}`, { token, body });
       setSelected(null);
-      // The answer carries my new view: no /state afterwards.
-      patch((s) => ({ ...s, room: { ...s.room, status: res.status }, match: res.match }));
+      if (res.match && res.status) {
+        // A match action: the answer carries my new view, no /state afterwards.
+        const { match, status } = res;
+        patch((s) => ({ ...s, room: { ...s.room, status }, match }));
+      } else {
+        // Anything else (e.g. "Meci nou" -> lobby, seats and queued spectators changed): the answer has no view,
+        // and my own broadcast does not come back to me, so read the room again.
+        await refresh();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
       await refresh(); // server truth replaces the optimistic change
