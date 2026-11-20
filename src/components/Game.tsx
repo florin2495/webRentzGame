@@ -8,6 +8,7 @@ import {
   cardLabel,
   GAME_INFO,
   rankOf,
+  ranksFor,
   rentzPoints,
   rentzRow,
   SUIT_NAME,
@@ -459,25 +460,33 @@ function Table({
 function Felt({ m, spots, name, showLast }: { m: MatchView; spots: Map<number, Spot>; name: (s: number) => string; showLast: boolean }) {
   const felt = "relative w-full rounded-2xl bg-emerald-800 shadow-inner ring-1 ring-emerald-950/30";
   if (m.game === "rentz") {
+    // One fixed column per rank (lowest .. A), the same in every row: the Jacks line up and their places show from the
+    // start. 4 players: J near the middle; 5 and 6 players add two low ranks each on the left, so J sits further right.
+    const ranks = ranksFor(m.seats.length);
+    const cols = `repeat(${ranks.length - 1}, minmax(0, 1.9rem)) 1.75rem`;
     return (
       <div className={`${felt} flex flex-col justify-center gap-1.5 px-2 py-2.5`} data-testid="felt" data-mode="rentz">
         {SUITS.map((suit) => {
-          const row = rentzRow(m, suit);
+          const onTable = new Set(rentzRow(m, suit));
           return (
-            <div key={suit} className="flex h-11 items-center" title={SUIT_NAME[suit]} data-suit={suit}>
-              {row.length === 0 ? (
-                <span className="flex h-10 w-7 items-center justify-center rounded-md border border-dashed border-emerald-200/50 text-[10px] font-bold text-emerald-100/80">
-                  J
-                  {SUIT_SYMBOL[suit]}
-                </span>
-              ) : (
-                // Cards overlap when the row is longer than the felt: each one keeps its corner (rank) visible.
-                row.map((c, i) => (
-                  <span key={c} className={`min-w-[11px] ${i === row.length - 1 ? "shrink-0" : "shrink basis-7"}`}>
-                    <PlayingCard card={c} size="xs" />
+            <div key={suit} className="grid h-11 items-center justify-center" style={{ gridTemplateColumns: cols }} title={SUIT_NAME[suit]} data-suit={suit}>
+              {ranks.map((r) => {
+                const card = `${r}${suit}`;
+                return (
+                  // Narrow columns: a card overflows to the right under the next one and keeps its corner (rank) visible.
+                  <span key={card} className="relative h-10 min-w-0">
+                    {onTable.has(card) ? (
+                      <span className="absolute left-0 top-0">
+                        <PlayingCard card={card} size="xs" />
+                      </span>
+                    ) : r === "J" ? (
+                      <span className="absolute left-0 top-0 flex h-10 w-7 items-center justify-center rounded-md border border-dashed border-emerald-200/50 text-[10px] font-bold text-emerald-100/80">
+                        J{SUIT_SYMBOL[suit]}
+                      </span>
+                    ) : null}
                   </span>
-                ))
-              )}
+                );
+              })}
             </div>
           );
         })}

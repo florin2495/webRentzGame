@@ -85,7 +85,7 @@ Rules for schema changes:
 - Live score: `MatchView.livePoints` (points of the deal in progress after every trick / Rentz card, blind doubled) feeds
   the "Live score" row on top of the scoreboard and its Total (nothing on the seat chips, user's choice 2026-11-21). Below
   it the "Jurnal" (`game-log`, a `<details>`, collapsed by default) lists every finished deal on two lines (game + who chose it / points per player), newest first.
-- Table UI (`Table` + `Felt` in `Game.tsx`, Septica's look): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1) around a green felt; each trick card lies in front of its player, Rentz rows sit on the felt (cards overlap when long).
+- Table UI (`Table` + `Felt` in `Game.tsx`, Septica's look): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1) around a green felt; each trick card lies in front of its player, Rentz rows sit on the felt as a fixed grid, one column per rank (lowest .. A), so the Jacks line up (their dashed places show from the start; J is near the middle at 4 players and moves right at 5 / 6).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.
 
