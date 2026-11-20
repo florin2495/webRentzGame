@@ -25,7 +25,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `rentz_players.kick_requested_at timestamptz` (pending kick, 10 s to press "Ignoră"). Do not push the kick-with-ignore code before it runs: every player query selects the column. |
 | `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `rentz_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push before it is applied: every player query selects `last_seen_at`. |
 | `supabase/migrations/003_spectators_seats.sql` | yes (run via ALL_MIGRATIONS.sql, 2026-11-08; verified 2026-11-14 by effect: production E2E exercises its columns) | `rentz_players.role` ('player'/'spectator'), `seat` (host-controlled table order), `queued_at` ("Intră la runda următoare" queue). Do not push before it is applied: every player query selects these columns. |
-| `supabase/migrations/004_totale_plus.sql` | **no** (written 2026-11-21) | `rentz_rooms.totale_plus boolean` (optional 9th game "Totale +", ticked when the room is created). Do not push v1.3 code before it is applied: every room query selects the column. |
+| `supabase/migrations/004_totale_plus.sql` | yes (2026-11-21, verified by effect: service-role select of `totale_plus` = 200) | `rentz_rooms.totale_plus boolean` (optional 9th game "Totale +", ticked when the room is created). Do not push v1.3 code before it is applied: every room query selects the column. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, and the same change folded
