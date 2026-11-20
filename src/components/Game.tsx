@@ -537,14 +537,6 @@ function SeatChip({ m, seat, connected }: { m: MatchView; seat: number; connecte
         {m.game === "rentz" && place >= 0 && ` · locul ${place + 1} (+${rentzPoints(m.seats.length)[place]})`}
         {m.game === "rentz" && place < 0 && passed && " · pas"}
       </span>
-      {m.livePoints && m.livePoints[seat] !== 0 && (
-        <span
-          data-testid="seat-live"
-          className={`block font-mono text-[11px] font-bold ${m.livePoints[seat] > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}
-        >
-          {fmt(m.livePoints[seat])}p în mâna asta
-        </span>
-      )}
       {m.chooser === seat && (
         <span className="mx-auto mt-0.5 block w-fit rounded-full bg-amber-300 px-1.5 text-[9px] font-bold uppercase text-amber-950">
           {m.phase === "choosing" ? "alege" : "a ales"}

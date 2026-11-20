@@ -78,8 +78,8 @@ Rules for schema changes:
   is chosen without seeing the cards and its points count x2 (`DealResult.blind`). The blind is used only when the blind
   deal finishes: a redeal (refusal or a cancelled Rentz) asks again. The chooser always leads.
 - Live score: `MatchView.livePoints` (points of the deal in progress after every trick / Rentz card, blind doubled) feeds
-  the "Live score" row on top of the scoreboard, the Total and each seat chip; the "Jurnal" lists every finished deal as one line
-  (game, who chose it, points per player), newest first.
+  the "Live score" row on top of the scoreboard and its Total (only there: no game log, nothing on the seat chips, user's
+  choice 2026-11-21).
 - Table UI (`Table` + `Felt` in `Game.tsx`, Septica's look): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1) around a green felt; each trick card lies in front of its player, Rentz rows sit on the felt (cards overlap when long).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.
@@ -126,7 +126,7 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
   Rooms are `e2e-test-ui-…`; a leftover is deleted with the service key from the same repo secrets.
 - Playwright files are `*.e2e.ts`, never `*.spec.ts` / `*.test.ts` (Vitest would pick those up).
 - The UI tests find elements by `data-testid`: `home-submit`, `join-submit`, `leave`, `lobby-players`, `start-game`,
-  `deal-counter` ("Mâna X/Y"), `blind-yes` / `blind-no`, `felt`, `live-row`, `score-total`, `seat-live`, `game-log`, `hand-hidden`, `blind-badge`, `cancel-rentz`, `rentz-cancelled`, `rentz-skip`, `lobby-games`, `turn-badge` (with `data-phase`, `data-deal`, `data-acting` = nickname of who acts),
+  `deal-counter` ("Mâna X/Y"), `blind-yes` / `blind-no`, `felt`, `live-row`, `score-total`, `hand-hidden`, `blind-badge`, `cancel-rentz`, `rentz-cancelled`, `rentz-skip`, `lobby-games`, `turn-badge` (with `data-phase`, `data-deal`, `data-acting` = nickname of who acts),
   `game-option` (with `data-game` = GameId), `choose-game`, `my-hand` (cards carry `data-card`, e.g. "QH";
   playable ones are enabled buttons), `refuse`, `deal-result` + `deal-result-ok`, `final-banner` (`data-end` =
   "complete"/"abandoned"), `new-round`, `spectator-status`, `queue-toggle`, `spectator-list`. Renaming or removing one breaks `tests/ui`.
