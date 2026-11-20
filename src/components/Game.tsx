@@ -76,7 +76,6 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   const m = state.match!;
   const base = `/api/rooms/${room.code}`;
   const isHost = room.hostPlayerId === me.id;
-  const n = m.seats.length;
   const name = (s: number) => m.names[s] ?? "?";
   const over = m.phase === "over";
   const myTurn = m.phase === "playing" && m.acting === m.mySeat;
@@ -125,7 +124,6 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   }
 
   const legal = new Set(m.legal);
-  const others = Array.from({ length: n - 1 }, (_, i) => (Math.max(m.mySeat, 0) + 1 + i) % n);
   const showLast = m.phase === "playing" && m.trick.length === 0 && m.lastTrick?.deal === m.deal;
   const refusalNow = m.lastRefusal && m.lastRefusal.deal === m.deal && m.phase !== "over";
   const rentzCancelNow = m.lastRentzCancel && m.lastRentzCancel.deal === m.deal && m.phase !== "over";
@@ -259,61 +257,12 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
         </Card>
       )}
 
-      {/* Table */}
-      {!over && (
-        <Card className="bg-emerald-50 dark:bg-emerald-950/40">
-          <TableSeats m={m} others={others} players={state.players} />
-
-          {m.game === "rentz" ? (
-            <div className="mt-3 flex flex-col gap-1.5">
-              {SUITS.map((suit) => {
-                const row = rentzRow(m, suit);
-                return (
-                  <div key={suit} className="flex min-h-12 items-center gap-1">
-                    <span className={`w-5 shrink-0 text-center text-lg ${suit === "H" || suit === "D" ? "text-rose-600" : ""}`} title={SUIT_NAME[suit]}>
-                      {SUIT_SYMBOL[suit]}
-                    </span>
-                    <div className="flex flex-wrap gap-0.5">
-                      {row.length === 0 ? (
-                        <span className="text-xs text-zinc-500">se deschide cu {m.rentzStart ? RANK_LABEL[m.rentzStart] : "J"}{SUIT_SYMBOL[suit]}</span>
-                      ) : (
-                        row.map((c) => <PlayingCard key={c} card={c} size="sm" />)
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="mt-3 flex min-h-28 flex-col items-center justify-center gap-1">
-              {m.trick.length > 0 ? (
-                <div className="flex justify-center gap-2">
-                  {m.trick.map((p) => (
-                    <PlayingCard key={p.card} card={p.card} size="lg" label={p.seat === m.mySeat ? "tu" : name(p.seat)} />
-                  ))}
-                </div>
-              ) : showLast && m.lastTrick ? (
-                <>
-                  <div className="flex justify-center gap-2">
-                    {m.lastTrick.cards.map((p) => (
-                      <PlayingCard key={p.card} card={p.card} size="lg" faded label={p.seat === m.mySeat ? "tu" : name(p.seat)} />
-                    ))}
-                  </div>
-                  <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-                    {m.lastTrick.winner === m.mySeat ? "Ai luat levata" : `${name(m.lastTrick.winner)} a luat levata`}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-zinc-500">{m.phase === "choosing" ? "Se alege jocul…" : "Masa e goală"}</p>
-              )}
-            </div>
-          )}
-        </Card>
-      )}
+      {/* Table: the seats around a green felt; the cards are put down on the felt */}
+      {!over && <Table m={m} players={state.players} name={name} showLast={showLast} />}
 
       {/* My hand */}
       {!over && m.mySeat >= 0 && (
-        <Card>
+        <Card className={myTurn ? "ring-2 ring-indigo-500" : ""}>
           <div className="mb-2 flex items-baseline justify-between gap-2 text-sm">
             <span className="font-bold">Cărțile tale</span>
             <span className="text-xs text-zinc-500">
@@ -447,32 +396,120 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   );
 }
 
+type Spot = [number, number];
+
 /**
  * Seats around the table, me at the bottom (my hand), play order clockwise = next players on my left.
  * 3: left 1, right 1 | 4: left 1, top 1, right 1 | 5: left 1, top 2, right 1 | 6: left 2, top 1, right 2 (stacked).
- * `others` = seats after mine in play order.
+ * The felt sits in the middle: every trick card lies in front of the seat that played it (Septica's table).
+ * A spectator watches from seat 0.
  */
-function TableSeats({ m, others, players }: { m: MatchView; others: number[]; players: RoomState["players"] }) {
-  const o = others;
+function Table({
+  m,
+  players,
+  name,
+  showLast,
+}: {
+  m: MatchView;
+  players: RoomState["players"];
+  name: (s: number) => string;
+  showLast: boolean;
+}) {
+  const n = m.seats.length;
+  const anchor = Math.max(m.mySeat, 0);
+  const o = Array.from({ length: n - 1 }, (_, i) => (anchor + 1 + i) % n);
   const split =
     o.length === 2
-      ? { left: [o[0]], top: [], right: [o[1]] }
+      ? { left: [o[0]], top: [] as number[], right: [o[1]] }
       : o.length === 3
         ? { left: [o[0]], top: [o[1]], right: [o[2]] }
         : o.length === 4
           ? { left: [o[0]], top: [o[1], o[2]], right: [o[3]] }
           : { left: [o[1], o[0]], top: [o[2]], right: [o[3], o[4]] };
+
+  // Where each seat's card lands on the felt (% of its width / height).
+  const spots = new Map<number, Spot>();
+  const column = (seats: number[], x: number) =>
+    seats.forEach((s, i) => spots.set(s, [x, seats.length === 1 ? 46 : i === 0 ? 30 : 64]));
+  column(split.left, 19);
+  column(split.right, 81);
+  split.top.forEach((s, i) => spots.set(s, [split.top.length === 1 ? 50 : i === 0 ? 34 : 66, 24]));
+  spots.set(anchor, [50, 74]);
+
   const chip = (s: number) => <SeatChip key={s} m={m} seat={s} connected={players.find((p) => p.id === m.seats[s])?.connected} />;
   return (
-    <div className="flex flex-col gap-2">
-      {split.top.length > 0 && <ul className="mx-auto flex w-full max-w-[18rem] justify-center gap-2 [&>li]:min-w-0 [&>li]:flex-1">{split.top.map(chip)}</ul>}
-      <div className="flex items-center justify-between gap-2">
-        <ul className="flex w-[42%] flex-col gap-2">{split.left.map(chip)}</ul>
-        <span aria-hidden className="text-xl text-emerald-700/60 dark:text-emerald-300/50" title="sens orar">
-          ↻
-        </span>
-        <ul className="flex w-[42%] flex-col gap-2">{split.right.map(chip)}</ul>
+    <Card className="flex flex-col gap-2 !p-2 sm:!p-3">
+      {split.top.length > 0 && (
+        <ul className="mx-auto flex w-full max-w-[20rem] justify-center gap-2 [&>li]:min-w-0 [&>li]:flex-1">{split.top.map(chip)}</ul>
+      )}
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2.6fr)_minmax(0,1fr)] items-center gap-1.5">
+        <ul className="flex flex-col gap-2">{split.left.map(chip)}</ul>
+        <Felt m={m} spots={spots} name={name} showLast={showLast} />
+        <ul className="flex flex-col gap-2">{split.right.map(chip)}</ul>
       </div>
+      {m.mySeat < 0 && <ul className="mx-auto w-1/2">{chip(anchor)}</ul>}
+    </Card>
+  );
+}
+
+/** The green felt: the current trick (each card in front of its player), or the four Rentz rows. */
+function Felt({ m, spots, name, showLast }: { m: MatchView; spots: Map<number, Spot>; name: (s: number) => string; showLast: boolean }) {
+  const felt = "relative w-full rounded-2xl bg-emerald-800 shadow-inner ring-1 ring-emerald-950/30";
+  if (m.game === "rentz") {
+    return (
+      <div className={`${felt} flex flex-col justify-center gap-1.5 px-2 py-2.5`} data-testid="felt" data-mode="rentz">
+        {SUITS.map((suit) => {
+          const row = rentzRow(m, suit);
+          return (
+            <div key={suit} className="flex h-11 items-center" title={SUIT_NAME[suit]} data-suit={suit}>
+              {row.length === 0 ? (
+                <span className="flex h-10 w-7 items-center justify-center rounded-md border border-dashed border-emerald-200/50 text-[10px] font-bold text-emerald-100/80">
+                  {m.rentzStart ? RANK_LABEL[m.rentzStart] : "J"}
+                  {SUIT_SYMBOL[suit]}
+                </span>
+              ) : (
+                // Cards overlap when the row is longer than the felt: each one keeps its corner (rank) visible.
+                row.map((c, i) => (
+                  <span key={c} className={`min-w-[11px] ${i === row.length - 1 ? "shrink-0" : "shrink basis-7"}`}>
+                    <PlayingCard card={c} size="xs" />
+                  </span>
+                ))
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  const live = m.trick;
+  const showing = live.length === 0 && showLast && m.lastTrick ? m.lastTrick.cards : live;
+  const faded = live.length === 0;
+  return (
+    <div className={`${felt} h-44`} data-testid="felt" data-mode="trick" data-last={faded && showing.length > 0}>
+      {showing.length === 0 ? (
+        <span className="absolute inset-0 flex items-center justify-center px-2 text-center text-xs text-emerald-100/80">
+          {m.phase === "choosing" ? "Se alege jocul…" : "Masa e goală"}
+        </span>
+      ) : (
+        showing.map((p) => {
+          const [x, y] = spots.get(p.seat) ?? [50, 50];
+          return (
+            <span
+              key={p.card}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${x}%`, top: `${y}%` }}
+              title={p.seat === m.mySeat ? "tu" : name(p.seat)}
+            >
+              <PlayingCard card={p.card} size="felt" faded={faded} />
+            </span>
+          );
+        })
+      )}
+      {faded && showing.length > 0 && m.lastTrick && (
+        <span className="absolute inset-x-1 bottom-1 truncate text-center text-[10px] font-semibold text-emerald-50">
+          {m.lastTrick.winner === m.mySeat ? "Ai luat levata" : `${name(m.lastTrick.winner)} a luat levata`}
+        </span>
+      )}
     </div>
   );
 }

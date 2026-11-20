@@ -77,7 +77,7 @@ Rules for schema changes:
   first asked "Joci blind?" (`POST /blind`, `blindPending`) while their own cards stay hidden (`handHidden`); a blind game
   is chosen without seeing the cards and its points count x2 (`DealResult.blind`). The blind is used only when the blind
   deal finishes: a redeal (refusal or a cancelled Rentz) asks again. The chooser always leads.
-- Table UI (`TableSeats` in `Game.tsx`): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1).
+- Table UI (`Table` + `Felt` in `Game.tsx`, Septica's look): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1) around a green felt; each trick card lies in front of its player, Rentz rows sit on the felt (cards overlap when long).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.
 
