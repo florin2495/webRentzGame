@@ -76,11 +76,11 @@ Rules for schema changes:
 - Blind (user's house rule): one blind game per player per match. Every deal the chooser (if their blind is unused) is
   first asked "Joci blind?" (`POST /blind`, `blindPending`) while their own cards stay hidden (`handHidden`); a blind game
   is chosen without seeing the cards and its points count x2 (`DealResult.blind`). The blind is used only when the blind
-  deal finishes: a redeal (refusal or a cancelled Rentz) asks again. The chooser always leads.
+  deal finishes: a redeal (refusal or a cancelled Rentz) asks again. While their cards are hidden the chooser cannot
+  refuse them. The chooser always leads.
 - Live score: `MatchView.livePoints` (points of the deal in progress after every trick / Rentz card, blind doubled) feeds
   the "Live score" row on top of the scoreboard and its Total (nothing on the seat chips, user's choice 2026-11-21). Below
-  it the "Jurnal" (`game-log`, a `<details>`, collapsed by default) lists every finished deal as one line (game, chooser,
-  points per player), newest first.
+  it the "Jurnal" (`game-log`, a `<details>`, collapsed by default) lists every finished deal on two lines (game + who chose it / points per player), newest first.
 - Table UI (`Table` + `Felt` in `Game.tsx`, Septica's look): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1) around a green felt; each trick card lies in front of its player, Rentz rows sit on the felt (cards overlap when long).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.

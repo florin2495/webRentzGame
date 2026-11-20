@@ -118,8 +118,8 @@ export function Scoreboard({ m }: { m: MatchView }) {
 }
 
 /**
- * Game log, collapsed by default (tap "Jurnal" to open): one line per finished deal, newest first,
- * e.g. "Mâna 3 · Rentz ales de Ana: Ana +400p · Bob +200p · Cris 0p".
+ * Game log, collapsed by default (tap "Jurnal" to open): two lines per finished deal, newest first:
+ * "Mâna 3 · Rentz ales de Ana" / "Ana +400p · Bob +200p · Cris 0p".
  */
 function GameLog({ m }: { m: MatchView }) {
   if (m.history.length === 0) return null;
@@ -145,10 +145,14 @@ function GameLog({ m }: { m: MatchView }) {
       <ol className="mt-1 flex max-h-64 flex-col gap-1.5 overflow-y-auto text-xs">
         {[...m.history].reverse().map((h) => (
           <li key={h.deal} className="rounded-lg bg-zinc-50 px-2 py-1.5 leading-relaxed dark:bg-zinc-900">
-            <span className="text-zinc-500">Mâna {h.deal + 1} · </span>
-            <b>{GAME_INFO[h.game].name}</b>
-            {h.blind && <span className="text-[10px] font-bold"> BLIND ×2</span>} ales de <b>{m.names[h.chooser]}</b>:{" "}
-            {line(h.points)}
+            {/* Line 1: the game and who chose it. Line 2: the points of every player. */}
+            <div>
+              <span className="text-zinc-500">Mâna {h.deal + 1} · </span>
+              <b>{GAME_INFO[h.game].name}</b>
+              {h.blind && <span className="text-[10px] font-bold"> BLIND ×2</span>} <span className="text-zinc-500">ales de</span>{" "}
+              <b>{m.names[h.chooser]}</b>
+            </div>
+            <div className="flex flex-wrap">{line(h.points)}</div>
           </li>
         ))}
       </ol>

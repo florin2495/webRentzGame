@@ -407,6 +407,8 @@ export function nothingPlayedYet(m: Match): boolean {
 
 export function canRefuse(m: Match, seat: number): boolean {
   if (seat < 0 || m.refused[seat]) return false;
+  // Blind: the chooser cannot refuse cards they have not seen yet.
+  if (handHidden(m, seat)) return false;
   return m.phase === "choosing" || (m.phase === "playing" && nothingPlayedYet(m));
 }
 

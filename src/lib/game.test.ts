@@ -295,6 +295,8 @@ describe("blind", () => {
     expect(handHidden(m, 0)).toBe(true);
     expect(handHidden(m, 1)).toBe(false);
     expect(() => chooseGame(m, 0, "rege", null)).toThrow(/blind/);
+    expect(canRefuse(m, 0)).toBe(false); // cards not seen yet: no refusing
+    expect(canRefuse(m, 1)).toBe(true);
     expect(() => decideBlind(m, 1, true)).toThrow(/rândul/);
     m = decideBlind(m, 0, true);
     expect(handHidden(m, 0)).toBe(true);

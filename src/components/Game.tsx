@@ -87,7 +87,11 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<CardCode | null>(null);
-  const [pickedGame, setPickedGame] = useState<GameId | null>(null);
+  // The game I tapped, remembered for this deal only: on my next turn the old pick is gone (it is played already).
+  const [picked, setPicked] = useState<{ deal: number; game: GameId } | null>(null);
+  const pickedGame =
+    picked && picked.deal === m.deal && m.mySeat >= 0 && m.remaining[m.mySeat]?.includes(picked.game) ? picked.game : null;
+  const setPickedGame = (game: GameId) => setPicked({ deal: m.deal, game });
   // Deal-result pop-up: deals finished while this component is mounted (it remounts per match).
   const [seenDeals, setSeenDeals] = useState(m.history.length);
 
