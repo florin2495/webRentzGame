@@ -358,7 +358,10 @@ export function nextRentzCard(m: Match, suit: Suit): Card | null {
 }
 
 /** Rentz: the cards already on the table for `suit`, in the order they were put down. */
-export function rentzRow(m: Pick<Match, "rentzStart" | "layout" | "seats" | "rows">, suit: Suit): Card[] {
+/** Rentz rows per suit as stored in a Match (optional) or sent in a MatchView (null). */
+type RentzRows = { rows?: Record<Suit, [number, number] | null> | null };
+
+export function rentzRow(m: Pick<Match, "rentzStart" | "layout" | "seats"> & RentzRows, suit: Suit): Card[] {
   const ranks = ranksFor(m.seats.length);
   if (!m.rentzStart) {
     const row = m.rows?.[suit] ?? null;
@@ -369,7 +372,7 @@ export function rentzRow(m: Pick<Match, "rentzStart" | "layout" | "seats" | "row
 }
 
 /** Rentz from the Jacks: the cards that can go down on `suit` now (its Jack, or the next one at either end). */
-export function rentzEnds(m: Pick<Match, "rows" | "seats">, suit: Suit): Card[] {
+export function rentzEnds(m: Pick<Match, "seats"> & RentzRows, suit: Suit): Card[] {
   const ranks = ranksFor(m.seats.length);
   const row = m.rows?.[suit] ?? null;
   if (!row) return [`J${suit}`];
@@ -452,7 +455,7 @@ export function dealPoints(m: Match): number[] {
       default:
         return 0;
     }
-  });
+  }).map((p) => p || 0); // −50 × 0 tricks is -0 in JS: store a plain 0
 }
 
 function trickDealOver(m: Match): boolean {
