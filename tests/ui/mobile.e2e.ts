@@ -50,7 +50,7 @@ test("the match fits a phone screen and a card is played by touch", async ({ bro
         expect(Math.min(...sizes), `smallest card in the hand of ${p.name}`).toBeGreaterThanOrEqual(MIN_TAP_PX);
       }
       const options = host.page.getByTestId("game-option");
-      await expect(options).toHaveCount(7);
+      await expect(options).toHaveCount(8);
       const heights = await options.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
       expect(Math.min(...heights), "smallest game button").toBeGreaterThanOrEqual(MIN_TAP_PX);
     });

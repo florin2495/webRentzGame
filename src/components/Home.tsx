@@ -9,7 +9,7 @@ import type { RoomListItem, RoomState } from "@/lib/types";
 import { FeedbackButton } from "./FeedbackButton";
 import { RoomList } from "./RoomList";
 import { Rules } from "./Rules";
-import { Button, Card, ErrorText, Field } from "./ui";
+import { Button, Card, ErrorText, Field, Toggle } from "./ui";
 
 interface JoinResult {
   code: string;
@@ -29,6 +29,7 @@ export function Home() {
   const nickname = typedNickname ?? storedNickname ?? "";
   const [roomName, setRoomName] = useState("");
   const [password, setPassword] = useState("");
+  const [totalePlus, setTotalePlus] = useState(false);
   const [code, setCode] = useState("");
   const [picked, setPicked] = useState<RoomListItem | null>(null);
   const nicknameRef = useRef<HTMLInputElement>(null);
@@ -58,7 +59,7 @@ export function Home() {
     try {
       const res =
         tab === "create"
-          ? await api<JoinResult>("/api/rooms", { body: { name: roomName, nickname, password, deviceId: deviceId() } })
+          ? await api<JoinResult>("/api/rooms", { body: { name: roomName, nickname, password, totalePlus, deviceId: deviceId() } })
           : await api<JoinResult>(`/api/rooms/${encodeURIComponent(joinCode)}/join`, {
               body: { nickname, password, deviceId: deviceId() },
             });
@@ -151,6 +152,15 @@ export function Home() {
               maxLength={100}
               autoComplete="off"
               required={tab === "join" && picked?.code === code && picked.hasPassword}
+            />
+          )}
+
+          {tab === "create" && (
+            <Toggle
+              label="Adaugă jocul Totale + (al 9-lea)"
+              hint="Whist +50 pe levată și 10♣ +100, într-o singură mână."
+              checked={totalePlus}
+              onChange={setTotalePlus}
             />
           )}
 

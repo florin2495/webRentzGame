@@ -30,6 +30,8 @@ export interface MatchView {
   /** Seat that has to act now (choose or play), -1 when over. */
   acting: number;
   hand: Card[];
+  /** Blind: my own cards are hidden from me while I decide / choose (I am the chooser). */
+  handHidden: boolean;
   /** Cards I may play right now (empty when it is not my turn). */
   legal: Card[];
   handCounts: number[];
@@ -38,13 +40,30 @@ export interface MatchView {
   tricks: number[];
   taken: Card[][];
   layout: Record<Suit, number>;
+  /** Rentz from the Jacks: [lowest, highest] index into ranksFor(n) per suit, null until its Jack is down. */
+  rows: Record<Suit, [number, number] | null> | null;
+  /** Rentz: seat that lost its turn to the lowest card just put down. */
+  rentzSkip: number | null;
   finished: number[];
   passes: number[];
+  /** Games of this match (8, or 9 with Totale +). */
+  games: GameId[];
   /** Games each seat still has to choose. */
   remaining: GameId[][];
   refused: boolean[];
   canRefuse: boolean;
   lastRefusal: { seat: number; deal: number } | null;
+  /** I may cancel the chosen Rentz now (at least 4 capete, before the first card). */
+  canCancelRentz: boolean;
+  /** How many capete (lowest rank in play + Ace) are in my hand. */
+  myCapete: number;
+  lastRentzCancel: { seat: number; deal: number } | null;
+  /** Each seat's blind game is used up. */
+  blindUsed: boolean[];
+  /** The chooser still has to say whether this deal is blind. */
+  blindPending: boolean;
+  /** This deal is blind (points x2). */
+  blind: boolean;
   scores: number[];
   history: DealResult[];
   endReason: "complete" | "abandoned" | null;
@@ -58,6 +77,8 @@ export interface RoomState {
     status: RoomStatus;
     round: number;
     hasPassword: boolean;
+    /** Optional 9th game "Totale +" is played in this room. */
+    totalePlus: boolean;
     hostPlayerId: string | null;
     winnerPlayerId: string | null;
   };

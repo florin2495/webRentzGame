@@ -9,7 +9,6 @@ import {
   GAME_INFO,
   RANK_LABEL,
   rankOf,
-  ranksFor,
   rentzPoints,
   rentzRow,
   SUIT_NAME,
@@ -18,7 +17,6 @@ import {
   suitOf,
   type Card as CardCode,
   type GameId,
-  type Rank,
 } from "@/lib/game";
 import type { MatchActionResult, MatchView, RoomState } from "@/lib/types";
 import { OfflineBadge, PlayerList } from "./PlayerList";
@@ -62,8 +60,12 @@ function takenSummary(m: MatchView, seat: number): string {
     case "levate":
     case "whist":
       return `${t} lev.`;
+    case "zece":
+      return taken.includes("TC") ? "10♣ luat" : `${t} lev.`;
     case "totale":
       return [`${t} lev.`, q && `${q}Q`, d && `${d}♦`, k && "K♥"].filter(Boolean).join(" · ");
+    case "totalePlus":
+      return [`${t} lev.`, taken.includes("TC") && "10♣"].filter(Boolean).join(" · ");
     default:
       return "";
   }
@@ -79,6 +81,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   const over = m.phase === "over";
   const myTurn = m.phase === "playing" && m.acting === m.mySeat;
   const iChoose = m.phase === "choosing" && m.chooser === m.mySeat;
+  const iDecideBlind = iChoose && m.blindPending;
 
   const [confirmPlay] = useBoolPref(PREF_CONFIRM_PLAY, false);
   const [soundOn] = useBoolPref(PREF_SOUND, true);
@@ -86,7 +89,6 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<CardCode | null>(null);
   const [pickedGame, setPickedGame] = useState<GameId | null>(null);
-  const [start, setStart] = useState<Rank>(ranksFor(n)[0]);
   // Deal-result pop-up: deals finished while this component is mounted (it remounts per match).
   const [seenDeals, setSeenDeals] = useState(m.history.length);
 
@@ -126,6 +128,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
   const others = Array.from({ length: n - 1 }, (_, i) => (Math.max(m.mySeat, 0) + 1 + i) % n);
   const showLast = m.phase === "playing" && m.trick.length === 0 && m.lastTrick?.deal === m.deal;
   const refusalNow = m.lastRefusal && m.lastRefusal.deal === m.deal && m.phase !== "over";
+  const rentzCancelNow = m.lastRentzCancel && m.lastRentzCancel.deal === m.deal && m.phase !== "over";
   const lastDeal = m.history.length > seenDeals ? m.history[m.history.length - 1] : null;
 
   return (
@@ -146,6 +149,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
               <>
                 <h2 className="mt-1 text-xl font-black">
                   {GAME_INFO[m.game].name}
+                  {m.blind && <BlindBadge />}
                   {m.game === "rentz" && m.rentzStart && (
                     <span className="ml-2 text-sm font-semibold text-zinc-500">de la {RANK_LABEL[m.rentzStart]}</span>
                   )}
@@ -153,7 +157,10 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
                 <p className="text-xs text-zinc-500">{GAME_INFO[m.game].rule}</p>
               </>
             ) : (
-              <h2 className="mt-1 text-xl font-black">{iChoose ? "Alegi jocul" : `${name(m.chooser)} alege jocul…`}</h2>
+              <h2 className="mt-1 text-xl font-black">
+                {iChoose ? "Alegi jocul" : `${name(m.chooser)} alege jocul…`}
+                {m.blind && <BlindBadge />}
+              </h2>
             )}
             <p
               data-testid="turn-badge"
@@ -164,12 +171,18 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
                 myTurn || iChoose ? "bg-indigo-600 text-white" : "bg-zinc-100 dark:bg-zinc-900"
               }`}
             >
-              {iChoose
+              {iDecideBlind
+                ? "Joci blind? Răspunde înainte să vezi cărțile"
+                : iChoose && m.blind
+                  ? "Alege jocul fără să vezi cărțile"
+                  : iChoose
                 ? "Uită-te în cărți și alege jocul"
                 : myTurn
                   ? "Tura ta"
                   : m.phase === "choosing"
-                    ? `Așteptăm alegerea lui ${name(m.chooser)}`
+                    ? m.blindPending
+                      ? `${name(m.chooser)} decide dacă joacă blind`
+                      : `Așteptăm alegerea lui ${name(m.chooser)}`
                     : `Tura lui ${name(m.acting)}`}
             </p>
             {refusalNow && (
@@ -177,12 +190,45 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
                 🔄 {m.lastRefusal!.seat === m.mySeat ? "Ai" : `${name(m.lastRefusal!.seat)} a`} refuzat cărțile. S-au împărțit din nou.
               </p>
             )}
+            {m.game === "rentz" && m.rentzSkip !== null && m.phase === "playing" && (
+              <p role="status" data-testid="rentz-skip" className="mt-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-center text-sm dark:bg-zinc-900">
+                ⏸ {m.rentzSkip === m.mySeat ? "Stai" : `${name(m.rentzSkip)} stă`} o tură (s-a pus cea mai mică carte).
+              </p>
+            )}
+            {rentzCancelNow && (
+              <p
+                role="status"
+                data-testid="rentz-cancelled"
+                className="mt-2 rounded-lg bg-amber-100 px-3 py-1.5 text-center text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+              >
+                ✋ {m.lastRentzCancel!.seat === m.mySeat ? "Ai" : `${name(m.lastRentzCancel!.seat)} a`} anulat Rentz-ul (4 capete). S-au
+                împărțit din nou, {m.chooser === m.mySeat ? "alegi" : `alege ${name(m.chooser)}`} din nou.
+              </p>
+            )}
           </>
         )}
       </Card>
 
+      {/* Blind? */}
+      {iDecideBlind && (
+        <Card>
+          <h2 className="font-bold">Joci blind?</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Alegi jocul fără să te uiți în cărți și punctajul mâinii se dublează. Ai un singur joc blind pe meci.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button data-testid="blind-yes" disabled={busy !== null} onClick={() => void run("blind", "blind", { blind: true })}>
+              Da, blind (×2)
+            </Button>
+            <Button variant="secondary" data-testid="blind-no" disabled={busy !== null} onClick={() => void run("blind", "blind", { blind: false })}>
+              Nu, văd cărțile
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Choosing */}
-      {iChoose && (
+      {iChoose && !iDecideBlind && (
         <Card>
           <div className="grid grid-cols-2 gap-2">
             {m.remaining[m.mySeat].map((g) => (
@@ -202,28 +248,11 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
             ))}
           </div>
           {pickedGame && <p className="mt-2 text-xs text-zinc-500">{GAME_INFO[pickedGame].rule}</p>}
-          {pickedGame === "rentz" && (
-            <label className="mt-3 flex items-center justify-between gap-2 text-sm font-medium">
-              Pornește de la
-              <select
-                data-testid="rentz-start"
-                value={start}
-                onChange={(e) => setStart(e.target.value as Rank)}
-                className="min-h-11 rounded-lg border border-zinc-300 bg-white px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
-              >
-                {ranksFor(n).map((r) => (
-                  <option key={r} value={r}>
-                    {RANK_LABEL[r]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <Button
             className="mt-3 w-full"
             disabled={!pickedGame || busy !== null}
             data-testid="choose-game"
-            onClick={() => pickedGame && void run("choose", "choose", { game: pickedGame, start })}
+            onClick={() => pickedGame && void run("choose", "choose", { game: pickedGame })}
           >
             {busy === "choose" ? "Se alege…" : pickedGame ? `Joacă ${GAME_INFO[pickedGame].name}` : "Alege un joc"}
           </Button>
@@ -246,7 +275,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
                     </span>
                     <div className="flex flex-wrap gap-0.5">
                       {row.length === 0 ? (
-                        <span className="text-xs text-zinc-500">se deschide cu {RANK_LABEL[m.rentzStart ?? "7"]}{SUIT_SYMBOL[suit]}</span>
+                        <span className="text-xs text-zinc-500">se deschide cu {m.rentzStart ? RANK_LABEL[m.rentzStart] : "J"}{SUIT_SYMBOL[suit]}</span>
                       ) : (
                         row.map((c) => <PlayingCard key={c} card={c} size="sm" />)
                       )}
@@ -292,7 +321,11 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
               {m.game === "rentz" && m.finished.includes(m.mySeat) && `Ai terminat al ${m.finished.indexOf(m.mySeat) + 1}-lea`}
             </span>
           </div>
-          {m.hand.length === 0 ? (
+          {m.handHidden ? (
+            <p data-testid="hand-hidden" className="py-4 text-center text-sm text-zinc-500">
+              🙈 Cărțile sunt ascunse până alegi jocul{m.blindPending ? " (întâi spui dacă joci blind)" : " (joc blind)"}.
+            </p>
+          ) : m.hand.length === 0 ? (
             <p className="py-4 text-center text-sm text-zinc-500">Nu mai ai cărți.</p>
           ) : (
             <div data-testid="my-hand" className="grid grid-cols-8 gap-1">
@@ -314,6 +347,20 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
             </Button>
           )}
 
+          {m.canCancelRentz && (
+            <Button
+              variant="secondary"
+              className="mt-3 w-full"
+              disabled={busy !== null}
+              data-testid="cancel-rentz"
+              onClick={() =>
+                window.confirm(`Anulezi Rentz-ul? Ai ${m.myCapete} capete. Se împart din nou și se alege din nou jocul.`) &&
+                void run("cancel-rentz", "cancel-rentz")
+              }
+            >
+              {busy === "cancel-rentz" ? "Se împart din nou…" : `✋ Anulez Rentz-ul (${m.myCapete} capete)`}
+            </Button>
+          )}
           {m.canRefuse ? (
             <Button
               variant="secondary"
@@ -372,7 +419,10 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
             <p className="text-xs text-zinc-500">
               Mâna {lastDeal.deal + 1} · a ales {name(lastDeal.chooser)}
             </p>
-            <h2 className="text-xl font-black">{GAME_INFO[lastDeal.game].name}</h2>
+            <h2 className="text-xl font-black">
+              {GAME_INFO[lastDeal.game].name}
+              {lastDeal.blind && <BlindBadge />}
+            </h2>
             <ul className="mt-3 flex flex-col gap-1">
               {lastDeal.points
                 .map((p, s) => ({ p, s }))
@@ -453,8 +503,17 @@ function SeatChip({ m, seat, connected }: { m: MatchView; seat: number; connecte
         </span>
       )}
       {m.refused[seat] && <span className="block text-[10px] text-amber-600">refuz folosit</span>}
+      {m.blindUsed[seat] && <span className="block text-[10px] text-zinc-500">blind folosit</span>}
       <OfflineBadge connected={connected} />
     </li>
+  );
+}
+
+function BlindBadge() {
+  return (
+    <span data-testid="blind-badge" className="ml-2 rounded-full bg-zinc-900 px-2 py-0.5 align-middle text-[11px] font-bold text-white dark:bg-zinc-100 dark:text-zinc-900">
+      BLIND ×2
+    </span>
   );
 }
 

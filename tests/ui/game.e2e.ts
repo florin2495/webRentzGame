@@ -4,7 +4,7 @@
 // next chooser, a player leaves mid-match (match stopped for everyone), the host starts a new match, leave.
 // Runs on every project.
 import { expect, test } from "@playwright/test";
-import { chooseGame, closeDealResult, createRoom, joinRoom, leaveAll, playDeal, REALTIME_MS, startMatch, turnBadge, withPlayers } from "./helpers";
+import { chooseGame, closeDealResult, declineBlind, createRoom, joinRoom, leaveAll, playDeal, REALTIME_MS, startMatch, turnBadge, withPlayers } from "./helpers";
 
 test("three players play a live deal of Rentz", async ({ browser }) => {
   await withPlayers(browser, ["Ana", "Bob", "Cris"], async (players, room) => {
@@ -16,7 +16,7 @@ test("three players play a live deal of Rentz", async ({ browser }) => {
       await joinRoom(cris, room.code);
       await startMatch(players);
       for (const p of players) {
-        await expect(p.page.getByTestId("deal-counter")).toHaveText("Mâna 1/21");
+        await expect(p.page.getByTestId("deal-counter")).toHaveText("Mâna 1/24");
         await expect(p.page.getByTestId("my-hand").locator("[data-card]")).toHaveCount(8);
       }
     });
@@ -32,9 +32,8 @@ test("three players play a live deal of Rentz", async ({ browser }) => {
     });
 
     await test.step("everyone sees the deal result, then Bob chooses the next game", async () => {
-      await closeDealResult(players, "Regele de inimă", "Mâna 2/21");
-      await expect(turnBadge(bob)).toHaveText("Uită-te în cărți și alege jocul");
-      await expect(turnBadge(host)).toHaveText("Așteptăm alegerea lui Bob");
+      await closeDealResult(players, "Regele de inimă", "Mâna 2/24");
+      await declineBlind(bob, [host, cris], room.code);
     });
 
     await test.step("Cris leaves mid-match: the match stops for everyone", async () => {

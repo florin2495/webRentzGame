@@ -20,6 +20,7 @@ create table if not exists public.rentz_rooms (
   host_player_id   uuid,
   winner_player_id uuid,
   match            jsonb,                                  -- null in the lobby
+  totale_plus      boolean not null default false,         -- optional 9th game "Totale +", see migrations/004
   version          integer not null default 0,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
@@ -48,7 +49,8 @@ create table if not exists public.rentz_players (
 );
 create unique index if not exists rentz_players_room_nickname_uq on public.rentz_players (room_id, lower(nickname));
 create index if not exists rentz_players_room_idx on public.rentz_players (room_id);
--- For databases created before migrations 001 / 002 (idempotent):
+-- For databases created before migrations 001 / 002 / 003 / 004 (idempotent):
+alter table public.rentz_rooms add column if not exists totale_plus boolean not null default false;
 alter table public.rentz_players add column if not exists kick_requested_at timestamptz;
 alter table public.rentz_players add column if not exists last_seen_at timestamptz not null default now();
 alter table public.rentz_players add column if not exists device_hash text;

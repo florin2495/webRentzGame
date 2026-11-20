@@ -2,7 +2,11 @@ import "server-only";
 import { randomInt } from "node:crypto";
 import {
   actingSeat,
+  canCancelRentz,
   canRefuse,
+  capeteCount,
+  gamesOf,
+  handHidden,
   isRoomAbandoned,
   isRoomExpired,
   leaderSeat,
@@ -252,6 +256,8 @@ const toPublic = (p: PlayerRow, now: number): PublicPlayer => ({
 export function viewMatch(m: Match, playerId: string): MatchView {
   const mySeat = m.seats.indexOf(playerId);
   const n = m.seats.length;
+  // Blind: the chooser does not see their own cards until the game is chosen.
+  const hidden = mySeat >= 0 && handHidden(m, mySeat);
   return {
     seats: m.seats,
     names: m.names,
@@ -263,7 +269,8 @@ export function viewMatch(m: Match, playerId: string): MatchView {
     game: m.game,
     rentzStart: m.rentzStart,
     acting: actingSeat(m),
-    hand: mySeat >= 0 && m.phase !== "over" ? sortHand(m.hands[mySeat]) : [],
+    hand: mySeat >= 0 && m.phase !== "over" && !hidden ? sortHand(m.hands[mySeat]) : [],
+    handHidden: hidden,
     legal: mySeat >= 0 ? legalCards(m, mySeat) : [],
     handCounts: m.hands.map((h) => h.length),
     trick: m.trick,
@@ -271,12 +278,21 @@ export function viewMatch(m: Match, playerId: string): MatchView {
     tricks: m.tricks,
     taken: m.taken,
     layout: m.layout,
+    rows: m.rows ?? null,
+    rentzSkip: m.rentzSkip ?? null,
     finished: m.finished,
     passes: m.passes,
+    games: gamesOf(m),
     remaining: Array.from({ length: n }, (_, s) => remainingGames(m, s)),
     refused: m.refused,
     canRefuse: mySeat >= 0 && canRefuse(m, mySeat),
     lastRefusal: m.lastRefusal,
+    canCancelRentz: mySeat >= 0 && canCancelRentz(m, mySeat),
+    myCapete: mySeat >= 0 && m.phase !== "over" && !hidden ? capeteCount(m.hands[mySeat], n) : 0,
+    blindUsed: m.blindUsed ?? Array(n).fill(false),
+    blindPending: m.blindPending === true,
+    blind: m.blind === true,
+    lastRentzCancel: m.lastRentzCancel ?? null,
     scores: m.scores,
     history: m.history,
     endReason: m.endReason,
@@ -301,6 +317,7 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
       status: room.status,
       round: room.round,
       hasPassword: room.password_hash !== null,
+      totalePlus: room.totale_plus,
       hostPlayerId: room.host_player_id,
       winnerPlayerId: room.winner_player_id,
     },

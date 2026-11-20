@@ -53,6 +53,9 @@ export function Lobby({ state, token, refresh }: Props) {
             {players.length}/{MAX_PLAYERS} · minim {MIN_PLAYERS}
           </span>
         </div>
+        <p data-testid="lobby-games" className="mb-2 text-xs text-zinc-500">
+          {room.totalePlus ? "9 jocuri pe jucător (cu Totale +)" : "8 jocuri pe jucător (fără Totale +)"}
+        </p>
         <ul data-testid="lobby-players" className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
           {players.map((p, index) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2">

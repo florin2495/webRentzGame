@@ -46,11 +46,13 @@ export async function POST(req: Request) {
       passwordHash = await hashPassword(body.password);
     }
 
+    const totalePlus = body.totalePlus === true;
+
     let room: { id: string; code: string } | null = null;
     for (let attempt = 0; attempt < 5 && !room; attempt++) {
       const { data, error } = await db()
         .from(T.rooms)
-        .insert({ code: newRoomCode(), name, password_hash: passwordHash })
+        .insert({ code: newRoomCode(), name, password_hash: passwordHash, totale_plus: totalePlus })
         .select("id, code")
         .single();
       if (error && !isUniqueViolation(error)) throw error;

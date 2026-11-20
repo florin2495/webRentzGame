@@ -39,7 +39,7 @@ test("a late joiner watches as a spectator and plays from the next match", async
     await test.step("a whole deal is played; the spectator follows every turn live", async () => {
       const view = await chooseGame(host, room.code, "rege");
       await playDeal(players, room.code, view, [dan]);
-      await closeDealResult([...players, dan], "Regele de inimă", "Mâna 2/21");
+      await closeDealResult([...players, dan], "Regele de inimă", "Mâna 2/24");
     });
 
     await test.step("a player leaves: the spectator sees the stopped match", async () => {

@@ -38,6 +38,8 @@ export interface RoomRow {
   winner_player_id: string | null;
   /** Whole match state, including every hand. Never sent to clients as-is. */
   match: Match | null;
+  /** Optional 9th game "Totale +" (room setting, chosen at creation). Needs migration 004_totale_plus.sql. */
+  totale_plus: boolean;
   /** Optimistic lock: every match write requires the version it read. */
   version: number;
   last_activity_at: string;
@@ -64,4 +66,4 @@ export interface PlayerRow {
 /** Never add token_hash / device_hash here: these rows feed the public state. */
 export const PLAYER_COLUMNS = "id, room_id, nickname, is_host, joined_at, kick_requested_at, last_seen_at, role, seat, queued_at";
 export const ROOM_COLUMNS =
-  "id, code, name, password_hash, status, round, host_player_id, winner_player_id, match, version, last_activity_at";
+  "id, code, name, password_hash, status, round, host_player_id, winner_player_id, match, totale_plus, version, last_activity_at";

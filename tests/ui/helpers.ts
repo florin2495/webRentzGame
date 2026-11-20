@@ -61,7 +61,22 @@ export async function joinRoom(p: Player, code: string): Promise<void> {
   await expect(p.page.getByTestId("join-submit")).toBeHidden();
 }
 
-/** Host (players[0]) starts once every player shows up in the lobby; everyone sees the host choosing. */
+/** The chooser answers "no" to the blind question (their cards show up), then everyone sees them choosing. */
+export async function declineBlind(chooser: Player, others: Player[], code: string): Promise<void> {
+  await expect(turnBadge(chooser)).toHaveText("Joci blind? Răspunde înainte să vezi cărțile");
+  await expect(chooser.page.getByTestId("hand-hidden")).toBeVisible();
+  for (const p of others) {
+    await expect(turnBadge(p)).toHaveText(`${chooser.name} decide dacă joacă blind`, { timeout: REALTIME_MS });
+  }
+  const [res] = await Promise.all([chooser.page.waitForResponse(isAction(code, "blind")), chooser.page.getByTestId("blind-no").click()]);
+  expect(res.ok(), `blind no: ${res.status()}`).toBe(true);
+  await expect(turnBadge(chooser)).toHaveText("Uită-te în cărți și alege jocul");
+  for (const p of others) {
+    await expect(turnBadge(p)).toHaveText(`Așteptăm alegerea lui ${chooser.name}`, { timeout: REALTIME_MS });
+  }
+}
+
+/** Host (players[0]) starts once every player shows up in the lobby; the host declines blind, everyone sees the host choosing. */
 export async function startMatch(players: Player[]): Promise<void> {
   const host = players[0];
   for (const p of players.slice(1)) {
@@ -69,10 +84,8 @@ export async function startMatch(players: Player[]): Promise<void> {
   }
   await expect(host.page.getByTestId("start-game")).toBeEnabled();
   await host.page.getByTestId("start-game").click();
-  await expect(turnBadge(host)).toHaveText("Uită-te în cărți și alege jocul");
-  for (const p of players.slice(1)) {
-    await expect(turnBadge(p)).toHaveText(`Așteptăm alegerea lui ${host.name}`, { timeout: REALTIME_MS });
-  }
+  const code = decodeURIComponent(new URL(host.page.url()).pathname.split("/").filter(Boolean).pop() ?? "");
+  await declineBlind(host, players.slice(1), code);
 }
 
 /** The chooser picks `game` (a GameId, not Rentz: no start card) on screen; returns the server's new view. */

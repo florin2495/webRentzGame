@@ -25,6 +25,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `rentz_players.kick_requested_at timestamptz` (pending kick, 10 s to press "Ignoră"). Do not push the kick-with-ignore code before it runs: every player query selects the column. |
 | `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `rentz_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push before it is applied: every player query selects `last_seen_at`. |
 | `supabase/migrations/003_spectators_seats.sql` | yes (run via ALL_MIGRATIONS.sql, 2026-11-08; verified 2026-11-14 by effect: production E2E exercises its columns) | `rentz_players.role` ('player'/'spectator'), `seat` (host-controlled table order), `queued_at` ("Intră la runda următoare" queue). Do not push before it is applied: every player query selects these columns. |
+| `supabase/migrations/004_totale_plus.sql` | **no** (written 2026-11-21) | `rentz_rooms.totale_plus boolean` (optional 9th game "Totale +", ticked when the room is created). Do not push v1.3 code before it is applied: every room query selects the column. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, and the same change folded
@@ -60,8 +61,23 @@ Rules for schema changes:
   spectators (`POST /queue` toggles `queued_at`) in queue order while seats are free. Spectators get the public `/state` (no hand) and
   `matchAction` refuses them. Leaderboard: `saveMatch` reports a complete match to the hub's `hub_leaderboard*` (best effort, idempotent);
   rooms named `e2e-test-…` never reach it (`isTestRoom` in `leaderboard.ts`).
-- 3-6 players: 8 cards each, deck = top 2N ranks per suit (3: 9-A, 4: 7-A, 5: 5-A, 6: 3-A); 7 games per player so 7N deals; Rentz places pay 100*N..100.
-  Table UI (`TableSeats` in `Game.tsx`): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1).
+- 3-6 players: 8 cards each, deck = top 2N ranks per suit (3: 9-A, 4: 7-A, 5: 5-A, 6: 3-A).
+- Games (user's rules, 2026-11-21; points fixed, not configurable): Regele de inimă −200, Dame −30 each, Carouri big (10-A) −20 /
+  small −10, Levate −50 per trick, Totale (all of these), Zece de treflă +200, Whist +50 per trick, Rentz; optional 9th
+  "Totale +" (Whist + 10♣ in one deal, room setting `totale_plus`). 8 (or 9) games per player, so 8N (9N) deals. `Match.games`
+  holds the list; matches started before v1.3 have none and use `LEGACY_GAMES` (the old 7).
+- Rentz: always from the 4 Jacks, each suit grows both ways (up to A, down to the lowest rank; `Match.rows`). An Ace gives
+  the same player one more card (if they can); the lowest card makes the next player still in the deal lose a turn
+  (`rentzSkip`). Places pay +400 / +200 / +100, the rest 0. A match whose Rentz deal started before v1.3 (`rentzStart` set)
+  finishes it the old way (ascending from the start card).
+- Cancel Rentz with 4 capete (user's house rule): capete = lowest rank in play + Ace. Once a Rentz is chosen and before
+  the first card, any player holding >= 4 capete (the chooser too) may cancel (`POST /cancel-rentz`): redeal, the same
+  chooser chooses again, Rentz stays available, no limit, the once-per-match refusal is not used.
+- Blind (user's house rule): one blind game per player per match. Every deal the chooser (if their blind is unused) is
+  first asked "Joci blind?" (`POST /blind`, `blindPending`) while their own cards stay hidden (`handHidden`); a blind game
+  is chosen without seeing the cards and its points count x2 (`DealResult.blind`). The blind is used only when the blind
+  deal finishes: a redeal (refusal or a cancelled Rentz) asks again. The chooser always leads.
+- Table UI (`TableSeats` in `Game.tsx`): me bottom, next players on the left clockwise (6: left 2, top 1, right 2; 5: left 1, top 2, right 1).
 - House rule from the user: each player may refuse the cards once per match, without a reason, until the first
   card of the deal is played. Redeal, the same chooser chooses again, the game is not consumed.
 
@@ -86,9 +102,10 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
   (production DB): create (password), join, wrong / missing password, start with 2 refused, 6 players then the 7th refused,
   room list, rejoin (saved token, same device, old token dead, mid-match), host reorder, start, private hands (24 distinct
   cards, no `hands` / tokens / hashes in any state), spectators (join a running room, 403 on every player / host route,
-  queue toggle and order, spectator rejoin), choose rules, refusal (once per match, not after the first card), out-of-turn /
+  queue toggle and order, spectator rejoin), choose rules, blind question (cards hidden, answered once, chooser only), refusal (once per match, not after the first card; blind asked again), out-of-turn /
   foreign / malformed / not-following-suit cards, autoplay (host only, not on his own turn), kick with "Ignoră", three full
-  deals (Regele de inimă −100, Rentz from 9 paying 300/200/100, Whist +400) with the scores adding up, a game cannot be
+  deals (Regele de inimă −200, Rentz from the Jacks paying 400/200/100 with every possible 4-capete cancel exercised, blind
+  Whist +800) with the scores adding up, a Totale + room, a game cannot be
   chosen twice, leave mid-match (match abandoned), new round (seats rotated, queued spectators seated), pending kick enforced
   after 12 s, lobby kick. It never plays a match to its natural end (that would write the hub leaderboard). Rooms are named
   `e2e-test-…` and deleted at the end; it never calls `/api/feedback`.
@@ -106,7 +123,7 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
   Rooms are `e2e-test-ui-…`; a leftover is deleted with the service key from the same repo secrets.
 - Playwright files are `*.e2e.ts`, never `*.spec.ts` / `*.test.ts` (Vitest would pick those up).
 - The UI tests find elements by `data-testid`: `home-submit`, `join-submit`, `leave`, `lobby-players`, `start-game`,
-  `deal-counter` ("Mâna X/Y"), `turn-badge` (with `data-phase`, `data-deal`, `data-acting` = nickname of who acts),
-  `game-option` (with `data-game` = GameId), `rentz-start`, `choose-game`, `my-hand` (cards carry `data-card`, e.g. "QH";
+  `deal-counter` ("Mâna X/Y"), `blind-yes` / `blind-no`, `hand-hidden`, `blind-badge`, `cancel-rentz`, `rentz-cancelled`, `rentz-skip`, `lobby-games`, `turn-badge` (with `data-phase`, `data-deal`, `data-acting` = nickname of who acts),
+  `game-option` (with `data-game` = GameId), `choose-game`, `my-hand` (cards carry `data-card`, e.g. "QH";
   playable ones are enabled buttons), `refuse`, `deal-result` + `deal-result-ok`, `final-banner` (`data-end` =
   "complete"/"abandoned"), `new-round`, `spectator-status`, `queue-toggle`, `spectator-list`. Renaming or removing one breaks `tests/ui`.

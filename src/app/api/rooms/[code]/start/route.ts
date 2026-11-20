@@ -20,7 +20,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/st
     // Table order = the seat order the host arranged (listPlayers sorts by seat); the first seat chooses first.
     const seats = players.map((p) => p.id);
     const names = players.map((p) => p.nickname);
-    const match = newMatch(seats, names, serverRandom);
+    const match = newMatch(seats, names, serverRandom, { totalePlus: room.totale_plus });
 
     // Conditional update: only one start can win, and only from the lobby.
     const now = new Date().toISOString();

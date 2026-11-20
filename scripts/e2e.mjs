@@ -128,6 +128,16 @@ async function main() {
   const code = r.data.code;
   if (!code) throw new Error("no room");
   created.add(code);
+  const tp = await call("/api/rooms", { body: { name: `${tag}-tp`, nickname: "Tina", totalePlus: true, deviceId: randomUUID() } });
+  check(tp.status === 200, "create a room with Totale +");
+  if (tp.data.code) {
+    created.add(tp.data.code);
+    const tps = await call(`/api/rooms/${tp.data.code}/state`, { token: tp.data.token });
+    check(tps.data.room?.totalePlus === true, "the Totale + room says so (9 games per player)");
+    const gone = await call(`/api/rooms/${tp.data.code}/leave`, { token: tp.data.token, body: {} });
+    check(gone.status === 200 && gone.data.roomClosed === true, "Totale + room closed");
+    if (gone.data.roomClosed) created.delete(tp.data.code);
+  }
   const A = { ...r.data, name: "Ana" };
   const joinRes = (nickname, deviceId, password = "pw") => call(`/api/rooms/${code}/join`, { body: { nickname, password, deviceId } });
   const join = async (nickname, deviceId) => ({ ...(await joinRes(nickname, deviceId)).data, name: nickname });
@@ -180,7 +190,17 @@ async function main() {
   const members = [A, B, C];
   let s = await state(code, A);
   check(s.room.status === "playing" && s.match.seats.join() === [A, B, C].map((p) => p.playerId).join(), "match dealt in seat order Ana, Bob, Cris");
-  check(s.match.totalDeals === 21 && s.match.deal === 0 && s.match.phase === "choosing" && s.match.chooser === 0, "21 deals, Ana chooses the first");
+  check(s.match.totalDeals === 24 && s.match.deal === 0 && s.match.phase === "choosing" && s.match.chooser === 0, "24 deals (8 games x 3), Ana chooses the first");
+  check(s.room.totalePlus === false && s.match.games.length === 8 && !s.match.games.includes("totalePlus"), "room without Totale +: 8 games");
+
+  console.log("Blind question");
+  check(s.match.blindPending === true && s.match.handHidden === true && s.match.hand.length === 0, "Ana is asked about blind first, her cards are hidden");
+  check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "rege" } })).status === 409, "choose before answering blind = 409");
+  check((await call(`/api/rooms/${code}/blind`, { token: B.token, body: { blind: false } })).status === 409, "blind answer by a non-chooser = 409");
+  check((await call(`/api/rooms/${code}/blind`, { token: A.token, body: { blind: "x" } })).status === 409, "malformed blind answer = 409");
+  const bl = await call(`/api/rooms/${code}/blind`, { token: A.token, body: { blind: false } });
+  check(bl.status === 200 && bl.data.match.blindPending === false && bl.data.match.handHidden === false && bl.data.match.hand.length === 8, "Ana: no blind, her cards show up");
+  check((await call(`/api/rooms/${code}/blind`, { token: A.token, body: { blind: false } })).status === 409, "answering blind twice = 409");
   const hands = {};
   for (const p of members) {
     const st = await state(code, p);
@@ -208,7 +228,7 @@ async function main() {
   check(all.every((c) => !sD.match.hand.includes(c)) && !rawD.includes('"hands"') && members.every((o) => !rawD.includes(o.token)), "spectator state leaks no hands or tokens");
   check((await state(code, A)).spectators.length === 2, "players see the spectators");
   check((await joinRes("dan", randomUUID())).status === 409, "nickname of a connected spectator from another device = 409");
-  for (const [path, body] of [["choose", { game: "rege" }], ["play", { card: all[0] }], ["refuse", {}], ["autoplay", {}], ["start", {}], ["new-round", {}], ["reorder", { order: [] }], ["kick", { playerId: A.playerId }]]) {
+  for (const [path, body] of [["choose", { game: "rege" }], ["blind", { blind: false }], ["cancel-rentz", {}], ["play", { card: all[0] }], ["refuse", {}], ["autoplay", {}], ["start", {}], ["new-round", {}], ["reorder", { order: [] }], ["kick", { playerId: A.playerId }]]) {
     const res = await call(`/api/rooms/${code}/${path}`, { token: D.token, body });
     check(res.status === 403, `spectator ${path} = 403 (${res.status})`);
   }
@@ -227,16 +247,18 @@ async function main() {
   console.log("Choosing, refusal");
   check((await call(`/api/rooms/${code}/choose`, { token: B.token, body: { game: "rege" } })).status === 409, "choose by a non-chooser = 409");
   check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "poker" } })).status === 409, "unknown game = 409");
-  check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "rentz" } })).status === 409, "Rentz without a start card = 409");
-  check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "rentz", start: "2" } })).status === 409, "Rentz start 2 (not in a 3-player deck) = 409");
+  check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "totalePlus" } })).status === 409, "Totale + in a room without it = 409");
+  check((await call(`/api/rooms/${code}/cancel-rentz`, { token: A.token, body: {} })).status === 409, "cancel Rentz when no Rentz is chosen = 409");
   check((await call(`/api/rooms/${code}/play`, { token: A.token, body: { card: hands[A.playerId][0] } })).status === 409, "play before the game is chosen = 409");
   const ref = await call(`/api/rooms/${code}/refuse`, { token: B.token, body: {} });
   check(ref.status === 200 && ref.data.match.refused[1] === true && ref.data.match.lastRefusal?.seat === 1, "Bob refuses the cards");
   s = await state(code, C);
   check(s.match.phase === "choosing" && s.match.deal === 0 && s.match.chooser === 0 && s.match.lastRefusal?.seat === 1, "redealt: same deal, Ana still chooses, everyone sees the refusal");
   check(s.match.hand.length === 8, "Cris got 8 new cards");
+  check(s.match.blindPending === true, "redealt: Ana is asked about blind again");
   check((await call(`/api/rooms/${code}/refuse`, { token: B.token, body: {} })).status === 409, "second refusal in the match = 409");
   check((await call(`/api/rooms/${code}/autoplay`, { token: A.token, body: {} })).status === 409, "host autoplay on his own turn = 409");
+  check((await call(`/api/rooms/${code}/blind`, { token: A.token, body: { blind: false } })).status === 200, "Ana: no blind");
   const ch = await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "rege" } });
   check(ch.status === 200 && ch.data.match.game === "rege" && ch.data.match.phase === "playing" && ch.data.match.acting === 0, "Ana chooses Regele de inimă and leads");
   check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "dame" } })).status === 409, "choose twice = 409");
@@ -301,37 +323,65 @@ async function main() {
   s = await state(code, A);
   const h1 = s.match.history[0];
   check(s.match.deal === 1 && h1?.game === "rege" && h1.chooser === 0, `deal 1 over after ${plays1} cards`);
-  check(h1 && h1.points.filter((p) => p === -100).length === 1 && h1.points.reduce((a, b) => a + b, 0) === -100, `K♥ cost one player −100 (${h1?.points.join("/")})`);
+  check(h1 && h1.points.filter((p) => p === -200).length === 1 && h1.points.reduce((a, b) => a + b, 0) === -200, `K♥ cost one player −200 (${h1?.points.join("/")})`);
   check(s.match.scores.join() === h1?.points.join(), "scores = deal 1 points");
-  check(s.match.phase === "choosing" && s.match.chooser === 1 && s.match.remaining[0].length === 6, "deal 2: Bob chooses, Ana has 6 games left");
+  check(s.match.phase === "choosing" && s.match.chooser === 1 && s.match.remaining[0].length === 7, "deal 2: Bob chooses, Ana has 7 games left");
 
-  console.log("Deal 2 (Rentz from 9)");
-  const ch2 = await call(`/api/rooms/${code}/choose`, { token: B.token, body: { game: "rentz", start: "9" } });
-  check(ch2.status === 200 && ch2.data.match.game === "rentz" && ch2.data.match.rentzStart === "9", "Bob chooses Rentz from 9");
+  console.log("Deal 2 (Rentz from the Jacks, cancel with 4 capete)");
+  const chooseRentz = async () => {
+    check((await call(`/api/rooms/${code}/blind`, { token: B.token, body: { blind: false } })).status === 200, "Bob: no blind");
+    const r = await call(`/api/rooms/${code}/choose`, { token: B.token, body: { game: "rentz" } });
+    check(r.status === 200 && r.data.match.game === "rentz" && r.data.match.rentzStart === null, "Bob chooses Rentz (from the Jacks, no start card)");
+  };
+  await chooseRentz();
+  for (let round = 0; round < 15; round++) {
+    const views = await Promise.all(members.map((p) => state(code, p)));
+    views.forEach((v, i) =>
+      check(v.match.canCancelRentz === (v.match.myCapete >= 4), `${members[i].name}: ${v.match.myCapete} capete, can cancel = ${v.match.canCancelRentz}`),
+    );
+    const without = members.find((_, i) => !views[i].match.canCancelRentz);
+    if (without) check((await call(`/api/rooms/${code}/cancel-rentz`, { token: without.token, body: {} })).status === 409, `${without.name} without 4 capete cannot cancel = 409`);
+    const withCapete = members.find((_, i) => views[i].match.canCancelRentz);
+    if (!withCapete) break;
+    const c = await call(`/api/rooms/${code}/cancel-rentz`, { token: withCapete.token, body: {} });
+    check(c.status === 200 && c.data.match.phase === "choosing" && c.data.match.chooser === 1 && c.data.match.lastRentzCancel?.seat === members.indexOf(withCapete), `${withCapete.name} cancels the Rentz (4 capete): redeal, Bob chooses again`);
+    check(c.data.match.remaining[1].includes("rentz") && c.data.match.deal === 1, "Rentz is still available to Bob, same deal");
+    await chooseRentz();
+  }
   let first = true;
   const plays2 = await playDeal(code, members, 1, async (view, actor, as) => {
     if (first) {
       first = false;
-      check(as.match.legal.every((c) => c[0] === "9"), `only 9s can open the rows (${as.match.legal.join(" ")})`);
-      const bad = as.match.hand.find((c) => c[0] !== "9");
+      check(as.match.legal.length > 0 && as.match.legal.every((c) => c[0] === "J"), `only Jacks can open the rows (${as.match.legal.join(" ")})`);
+      const bad = as.match.hand.find((c) => c[0] !== "J");
       if (bad) check((await call(`/api/rooms/${code}/play`, { token: actor.token, body: { card: bad } })).status === 409, `${bad} cannot open a row = 409`);
+      check((await call(`/api/rooms/${code}/play`, { token: actor.token, body: { card: as.match.legal[0] } })).status === 200, "a Jack opens the first row");
+      const after = await state(code, actor);
+      check(!after.match.canCancelRentz, "no cancelling after the first card");
+      return after.match;
     }
     return null;
   });
   s = await state(code, A);
   const h2 = s.match.history[1];
   check(s.match.deal === 2 && h2?.game === "rentz", `deal 2 over after ${plays2} cards`);
-  check(h2 && [...h2.points].sort((a, b) => b - a).join() === "300,200,100", `Rentz places pay 300/200/100 (${h2?.points.join("/")})`);
+  check(h2 && [...h2.points].sort((a, b) => b - a).join() === "400,200,100", `Rentz places pay 400/200/100 (${h2?.points.join("/")})`);
 
-  console.log("Deal 3 (Whist), deal 4 rules");
-  check((await call(`/api/rooms/${code}/choose`, { token: C.token, body: { game: "whist" } })).status === 200, "Cris chooses Whist");
+  console.log("Deal 3 (blind Whist, x2), deal 4 rules");
+  const bc = await call(`/api/rooms/${code}/blind`, { token: C.token, body: { blind: true } });
+  check(bc.status === 200 && bc.data.match.blind === true && bc.data.match.handHidden === true && bc.data.match.hand.length === 0, "Cris plays blind: cards still hidden");
+  check((await state(code, A)).match.blind === true, "everyone sees the blind deal");
+  const cw = await call(`/api/rooms/${code}/choose`, { token: C.token, body: { game: "whist" } });
+  check(cw.status === 200 && cw.data.match.handHidden === false && cw.data.match.hand.length === 8, "Cris chooses Whist blind, then sees the cards");
   const plays3 = await playDeal(code, members, 2);
   s = await state(code, A);
   const h3 = s.match.history[2];
-  check(plays3 === 24 && h3?.game === "whist" && h3.points.reduce((a, b) => a + b, 0) === 400, `Whist: 8 tricks, +400 in total (${h3?.points.join("/")})`);
+  check(plays3 === 24 && h3?.game === "whist" && h3.blind === true && h3.points.reduce((a, b) => a + b, 0) === 800, `blind Whist: 8 tricks, +800 in total (${h3?.points.join("/")})`);
+  check(s.match.blindUsed.join() === "false,false,true", "Cris has used the blind");
   const sum = [0, 1, 2].map((i) => s.match.history.reduce((t, h) => t + h.points[i], 0));
   check(s.match.scores.join() === sum.join(), `scores add up (${s.match.scores.join("/")})`);
   check(s.match.chooser === 0 && s.match.deal === 3, "deal 4: Ana chooses again");
+  check((await call(`/api/rooms/${code}/blind`, { token: A.token, body: { blind: false } })).status === 200, "Ana: no blind");
   check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "rege" } })).status === 409, "a game cannot be chosen twice by the same player = 409");
   check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "dame" } })).status === 200, "Ana chooses Dame");
   await playDeal(code, members, 3, async (view) => (view.trick.length === 0 && view.tricks.reduce((a, b) => a + b, 0) >= 2 ? { phase: "stop" } : null));

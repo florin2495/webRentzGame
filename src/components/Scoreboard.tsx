@@ -1,4 +1,4 @@
-import { GAME_INFO, GAMES } from "@/lib/game";
+import { GAME_INFO } from "@/lib/game";
 import type { MatchView } from "@/lib/types";
 import { Card } from "./ui";
 
@@ -27,7 +27,8 @@ export function Scoreboard({ m }: { m: MatchView }) {
             {m.history.map((h) => (
               <tr key={h.deal} className="border-t border-zinc-100 dark:border-zinc-900">
                 <td className="px-1 py-1 text-xs">
-                  <span className="font-semibold">{GAME_INFO[h.game].name}</span>{" "}
+                  <span className="font-semibold">{GAME_INFO[h.game].name}</span>
+                  {h.blind && <span className="ml-1 text-[10px] font-bold">BLIND ×2</span>}{" "}
                   <span className="text-zinc-500">· {m.names[h.chooser]}</span>
                 </td>
                 {seats.map((s) => (
@@ -64,7 +65,7 @@ export function Scoreboard({ m }: { m: MatchView }) {
           <thead>
             <tr className="text-zinc-500">
               <th />
-              {GAMES.map((g) => (
+              {m.games.map((g) => (
                 <th key={g} className="px-1 font-semibold" title={GAME_INFO[g].name}>
                   {GAME_INFO[g].icon}
                 </th>
@@ -75,7 +76,7 @@ export function Scoreboard({ m }: { m: MatchView }) {
             {seats.map((s) => (
               <tr key={s}>
                 <td className="max-w-20 truncate px-1 py-0.5 font-semibold">{m.names[s]}</td>
-                {GAMES.map((g) => {
+                {m.games.map((g) => {
                   const done = !m.remaining[s].includes(g);
                   const now = m.phase !== "over" && m.chooser === s && m.game === g;
                   return (
@@ -90,7 +91,7 @@ export function Scoreboard({ m }: { m: MatchView }) {
         </table>
       </div>
       <p className="mt-1 text-[11px] text-zinc-500">
-        {GAMES.map((g) => `${GAME_INFO[g].icon} ${GAME_INFO[g].name}`).join(" · ")}
+        {m.games.map((g) => `${GAME_INFO[g].icon} ${GAME_INFO[g].name}`).join(" · ")}
       </p>
     </Card>
   );
