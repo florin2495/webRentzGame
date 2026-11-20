@@ -7,7 +7,9 @@ import {
   capeteCount,
   gamesOf,
   handHidden,
+  isBot,
   livePoints,
+  runBots,
   isRoomAbandoned,
   isRoomExpired,
   leaderSeat,
@@ -234,7 +236,8 @@ export async function matchAction(
   if (seat < 0) fail(403, "Nu participi la acest meci.");
   let next: Match;
   try {
-    next = apply(match, seat, ctx);
+    // After every move, the automatic seats (players who left / were kicked) play until a real player has to act.
+    next = runBots(apply(match, seat, ctx), serverRandom);
   } catch (err) {
     if (err instanceof RulesError) fail(409, err.message);
     throw err;
@@ -281,6 +284,8 @@ export function viewMatch(m: Match, playerId: string): MatchView {
     layout: m.layout,
     rows: m.rows ?? null,
     rentzSkip: m.rentzSkip ?? null,
+    rentzAgain: m.rentzAgain ?? null,
+    bots: Array.from({ length: n }, (_, s) => isBot(m, s)),
     finished: m.finished,
     passes: m.passes,
     games: gamesOf(m),

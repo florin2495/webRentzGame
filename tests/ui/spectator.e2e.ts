@@ -42,9 +42,16 @@ test("a late joiner watches as a spectator and plays from the next match", async
       await closeDealResult([...players, dan], "Regele de inimă", "Mâna 2/24");
     });
 
-    await test.step("a player leaves: the spectator sees the stopped match", async () => {
+    await test.step("a player leaves: the seat plays on automatically, the spectator sees it", async () => {
       await leaveAll([cris]);
+      await expect(dan.page.getByTestId("seat-bot")).toHaveCount(1, { timeout: REALTIME_MS });
+      await expect(dan.page.getByTestId("final-banner")).toHaveCount(0);
+    });
+
+    await test.step("a second player leaves: one real player left, the spectator sees the stopped match", async () => {
+      await leaveAll([bob]);
       await expect(dan.page.getByTestId("final-banner")).toHaveAttribute("data-end", "abandoned", { timeout: REALTIME_MS });
+      await expect(dan.page.getByTestId("final-ranking").locator("li")).toHaveCount(3);
     });
 
     await test.step("new match: the queued spectator becomes a player", async () => {
@@ -56,7 +63,7 @@ test("a late joiner watches as a spectator and plays from the next match", async
     });
 
     await test.step("everyone leaves, the room closes", async () => {
-      await leaveAll([dan, bob, host]);
+      await leaveAll([dan, host]);
       room.closed = true;
     });
   });

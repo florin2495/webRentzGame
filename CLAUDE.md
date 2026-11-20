@@ -65,11 +65,15 @@ Rules for schema changes:
 - Games (user's rules, 2026-11-21; points fixed, not configurable): Regele de inimă −200, Dame −40 each, Carouri big (10-A) −20 /
   small −10, Levate −50 per trick, Totale (all of these), Zece de treflă +200, Whist +50 per trick, Rentz; optional 9th
   "Totale +" (Whist + 10♣ in one deal, room setting `totale_plus`). 8 (or 9) games per player, so 8N (9N) deals. `Match.games`
-  holds the list; matches started before v1.3 have none and use `LEGACY_GAMES` (the old 7).
+  holds the list. The host can tick Totale + at creation or in the lobby (`POST /settings {totalePlus}`, host + lobby only).
 - Rentz: always from the 4 Jacks, each suit grows both ways (up to A, down to the lowest rank; `Match.rows`). An Ace gives
   the same player one more card (if they can); the lowest card makes the next player still in the deal lose a turn
-  (`rentzSkip`). Places pay +400 / +200 / +100, the rest 0. A match whose Rentz deal started before v1.3 (`rentzStart` set)
-  finishes it the old way (ascending from the start card).
+  (`rentzSkip`); an Ace that plays again sets `rentzAgain`. The status card explains the turn (`rentz-notes`: Ace again,
+  who passed, who waits). Places pay +400 / +200 / +100, the rest 0. (`rentzStart` stays in the type, always null.)
+- Leaving / kicked mid-match (user's rule, 2026-11-21): the seat becomes automatic (`Match.bots`, game.ts `seatLeaves`):
+  `runBots` plays it (legal cards, random game, never blind) right after every move in `matchAction` and on removal, so the
+  others keep playing. With fewer than 2 real players left the match stops (abandoned, scores stand). A match that the
+  automatic seats finish is reported to the leaderboard by `removePlayer`. The final banner lists every player with places.
 - Cancel Rentz with 4 capete (user's house rule): capete = lowest rank in play + Ace. Once a Rentz is chosen and before
   the first card, any player holding >= 4 capete (the chooser too) may cancel (`POST /cancel-rentz`): redeal, the same
   chooser chooses again, Rentz stays available, no limit, the once-per-match refusal is not used.
@@ -110,24 +114,24 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
   foreign / malformed / not-following-suit cards, autoplay (host only, not on his own turn), kick with "Ignoră", three full
   deals (Regele de inimă −200, Rentz from the Jacks paying 400/200/100 with every possible 4-capete cancel exercised, blind
   Whist +800) with the scores adding up, a Totale + room, a game cannot be
-  chosen twice, leave mid-match (match abandoned), new round (seats rotated, queued spectators seated), pending kick enforced
-  after 12 s, lobby kick. It never plays a match to its natural end (that would write the hub leaderboard). Rooms are named
+  chosen twice, leave mid-match (seat goes automatic, then a second leave stops the match), new round (seats rotated, queued spectators
+  seated), host Totale + setting in the lobby, lobby kick, pending kick enforced after 12 s (seat goes automatic). It never plays a match to its natural end (that would write the hub leaderboard). Rooms are named
   `e2e-test-…` and deleted at the end; it never calls `/api/feedback`.
 - What E2E UI does (`tests/ui/`, shared steps in `helpers.ts`; Rentz needs 3 players, so 3 browser contexts = 3 devices;
   every change must reach the other screens within 5 s without a reload, polling is 60 s, so this checks Realtime; cards
   are random, so each move is the first playable card on screen and the next actor comes from the server's answer):
   - `game.e2e.ts` (both projects): create, two join by link, start, the host chooses Regele de inimă, the whole deal is
-    played (each actor's "Tura ta" must appear live), deal-result pop-up on every screen, Bob chooses next, a player leaves
-    (match abandoned for the others), new match, leave.
+    played (each actor's "Tura ta" must appear live), deal-result pop-up on every screen, Bob chooses next, Cris leaves
+    (her seat shows "automat", the match goes on), Bob leaves (one real player: stopped, full ranking), new match, leave.
   - `spectator.e2e.ts` (desktop Chromium only): a 4th person joins mid-match = spectator (no hand, no player buttons), the
-    players see them, queue ("în coadă" seen by the players), follows every turn of a whole deal, sees the stopped match,
-    and the new match seats them.
+    players see them, queue ("în coadă" seen by the players), follows every turn of a whole deal, sees a seat go
+    automatic, then the stopped match with the ranking, and the new match seats them.
   - `mobile.e2e.ts` (iPhone only): no horizontal scroll on home / lobby / match, every hand card and game button >= 24 px,
     a touch tap chooses Whist and plays a card that the other phones see live.
   Rooms are `e2e-test-ui-…`; a leftover is deleted with the service key from the same repo secrets.
 - Playwright files are `*.e2e.ts`, never `*.spec.ts` / `*.test.ts` (Vitest would pick those up).
 - The UI tests find elements by `data-testid`: `home-submit`, `join-submit`, `leave`, `lobby-players`, `start-game`,
-  `deal-counter` ("Mâna X/Y"), `blind-yes` / `blind-no`, `felt`, `live-row`, `score-total`, `hand-hidden`, `blind-badge`, `cancel-rentz`, `rentz-cancelled`, `rentz-skip`, `lobby-games`, `turn-badge` (with `data-phase`, `data-deal`, `data-acting` = nickname of who acts),
+  `deal-counter` ("Mâna X/Y"), `blind-yes` / `blind-no`, `felt`, `live-row`, `seat-bot`, `final-ranking`, `rentz-notes`, `score-total`, `hand-hidden`, `blind-badge`, `cancel-rentz`, `rentz-cancelled`, `lobby-games`, `turn-badge` (with `data-phase`, `data-deal`, `data-acting` = nickname of who acts),
   `game-option` (with `data-game` = GameId), `choose-game`, `my-hand` (cards carry `data-card`, e.g. "QH";
   playable ones are enabled buttons), `refuse`, `deal-result` + `deal-result-ok`, `final-banner` (`data-end` =
   "complete"/"abandoned"), `new-round`, `spectator-status`, `queue-toggle`, `spectator-list`. Renaming or removing one breaks `tests/ui`.

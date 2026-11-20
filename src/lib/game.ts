@@ -86,7 +86,7 @@ export function isCard(c: unknown): c is Card {
 
 /**
  * Ranks in play: the top 2N of every suit, so each of the N players gets exactly 8 cards.
- * 3 players: 9-A (24 cards), 4: 7-A (32), 5: 6-A (40), 6: 3-A (48). The low cards are simply left out.
+ * 3 players: 9-A (24 cards), 4: 7-A (32), 5: 5-A (40), 6: 3-A (48). The low cards are simply left out.
  */
 export function ranksFor(players: number): Rank[] {
   return RANKS.slice(RANKS.length - 2 * players);
@@ -124,8 +124,6 @@ export const GAMES = ["rege", "dame", "carouri", "levate", "totale", "zece", "wh
 export type GameId = (typeof GAMES)[number];
 /** The 8 games of every match. */
 export const BASE_GAMES: readonly GameId[] = GAMES.filter((g) => g !== "totalePlus");
-/** Games of a match started before `Match.games` existed (v1.2.x): read only, for matches already running. */
-export const LEGACY_GAMES: readonly GameId[] = ["rege", "dame", "carouri", "levate", "whist", "totale", "rentz"];
 
 export function matchGames(totalePlus: boolean): GameId[] {
   return totalePlus ? [...GAMES] : [...BASE_GAMES];
@@ -142,7 +140,7 @@ export const GAME_INFO: Record<GameId, { name: string; icon: string; rule: strin
   levate: { name: "Levate", icon: "▤", rule: "−50 pentru fiecare levată luată." },
   totale: {
     name: "Totale",
-    icon: "Σ",
+    icon: "Σ−",
     rule: "Toate penalizările odată: K♥ −200, dame −40, caro mare −20 / mic −10, levate −50 (dama de caro se pune și ca damă, și ca caro).",
   },
   zece: { name: "Zece de treflă", icon: "10♣", rule: "Cine ia 10♣ primește +200. Mâna se oprește când iese." },
@@ -231,16 +229,20 @@ export interface Match {
   layout: Record<Suit, number>;
   /**
    * Rentz from the Jacks: per suit, the [lowest, highest] index into ranksFor(n) already on the table, null until
-   * its Jack is down. Missing on older matches (their Rentz ran from `rentzStart`, ascending).
+   * its Jack is down.
    */
   rows?: Record<Suit, [number, number] | null>;
   /** Rentz: seat that lost its turn because the lowest card was just put down (shown to everyone). */
   rentzSkip?: number | null;
+  /** Rentz: seat that just put down an Ace and plays again (shown to everyone). */
+  rentzAgain?: number | null;
+  /** Seats played automatically: the player left or was kicked mid-match (legal cards, never blind). */
+  bots?: boolean[];
   /** Rentz: seats in the order they ran out of cards. */
   finished: number[];
   /** Rentz: seats that had to pass since the last card was put down. */
   passes: number[];
-  /** Games in this match (8, or 9 with Totale +). Missing on matches started before v1.3: LEGACY_GAMES. */
+  /** Games in this match (8, or 9 with Totale +). */
   games?: GameId[];
   /** Games each seat has already chosen (each seat chooses every game exactly once). */
   played: GameId[][];
@@ -287,6 +289,7 @@ function startDeal(m: Match, random: () => number) {
   m.layout = emptyLayout();
   m.rows = emptyRows();
   m.rentzSkip = null;
+  m.rentzAgain = null;
   m.finished = [];
   m.passes = [];
   m.blindUsed ??= Array(n).fill(false);
@@ -339,36 +342,23 @@ export function newMatch(
   return m;
 }
 
-/** The games of this match (older matches: the 7 legacy ones). */
+/** The games of this match. */
 export function gamesOf(m: Pick<Match, "games">): GameId[] {
-  return [...(m.games ?? LEGACY_GAMES)];
+  return [...(m.games ?? BASE_GAMES)];
 }
 
 export function remainingGames(m: Match, seat: number): GameId[] {
   return gamesOf(m).filter((g) => !m.played[seat]?.includes(g));
 }
 
-/** Rentz: the next card that can be put down on `suit`, or null when the suit is complete. */
-export function nextRentzCard(m: Match, suit: Suit): Card | null {
-  const ranks = ranksFor(m.seats.length);
-  const count = m.layout[suit];
-  if (!m.rentzStart || count >= ranks.length) return null;
-  const start = ranks.indexOf(m.rentzStart);
-  return `${ranks[(start + count) % ranks.length]}${suit}`;
-}
-
-/** Rentz: the cards already on the table for `suit`, in the order they were put down. */
 /** Rentz rows per suit as stored in a Match (optional) or sent in a MatchView (null). */
 type RentzRows = { rows?: Record<Suit, [number, number] | null> | null };
 
-export function rentzRow(m: Pick<Match, "rentzStart" | "layout" | "seats"> & RentzRows, suit: Suit): Card[] {
+/** Rentz: the cards of `suit` on the table, lowest to highest (a run around its Jack). */
+export function rentzRow(m: Pick<Match, "seats"> & RentzRows, suit: Suit): Card[] {
   const ranks = ranksFor(m.seats.length);
-  if (!m.rentzStart) {
-    const row = m.rows?.[suit] ?? null;
-    return row ? ranks.slice(row[0], row[1] + 1).map((r) => `${r}${suit}`) : [];
-  }
-  const start = ranks.indexOf(m.rentzStart);
-  return Array.from({ length: m.layout[suit] }, (_, k) => `${ranks[(start + k) % ranks.length]}${suit}`);
+  const row = m.rows?.[suit] ?? null;
+  return row ? ranks.slice(row[0], row[1] + 1).map((r) => `${r}${suit}`) : [];
 }
 
 /** Rentz from the Jacks: the cards that can go down on `suit` now (its Jack, or the next one at either end). */
@@ -382,16 +372,11 @@ export function rentzEnds(m: Pick<Match, "seats"> & RentzRows, suit: Suit): Card
   return out;
 }
 
-/** A Rentz deal of a match started before v1.3 (chosen start card, ascending). */
-const legacyRentz = (m: Match) => m.rentzStart !== null;
-
 export function legalCards(m: Match, seat: number): Card[] {
   if (m.phase !== "playing" || m.turn !== seat) return [];
   const hand = m.hands[seat];
   if (m.game === "rentz") {
-    const wanted = new Set(
-      legacyRentz(m) ? SUITS.map((s) => nextRentzCard(m, s)).filter(Boolean) : SUITS.flatMap((s) => rentzEnds(m, s)),
-    );
+    const wanted = new Set(SUITS.flatMap((s) => rentzEnds(m, s)));
     return hand.filter((c) => wanted.has(c));
   }
   if (m.trick.length === 0) return [...hand];
@@ -568,29 +553,29 @@ export function playCard(prev: Match, seat: number, card: unknown, random: () =>
     m.layout[suit] += 1;
     m.passes = [];
     m.rentzSkip = null;
+    m.rentzAgain = null;
     const idx = ranksFor(n).indexOf(rankOf(card));
-    if (!legacyRentz(m)) {
-      m.rows ??= emptyRows();
-      const row = m.rows[suit];
-      m.rows[suit] = row ? [Math.min(row[0], idx), Math.max(row[1], idx)] : [idx, idx];
-    }
+    m.rows ??= emptyRows();
+    const row = m.rows[suit];
+    m.rows[suit] = row ? [Math.min(row[0], idx), Math.max(row[1], idx)] : [idx, idx];
     if (m.hands[seat].length === 0) m.finished.push(seat);
     if (m.finished.length >= n - 1) {
       for (let s = 0; s < n; s++) if (!m.finished.includes(s)) m.finished.push(s);
       finishDeal(m, random);
       return m;
     }
-    if (!legacyRentz(m)) {
-      // Ace: the same player puts down one more card, if they can.
-      if (rankOf(card) === "A" && !m.finished.includes(seat) && legalCards(m, seat).length > 0) return m;
-      // Lowest card: the next player still in the deal loses this turn.
-      if (idx === 0) {
-        let skipped = (seat + 1) % n;
-        while (m.finished.includes(skipped)) skipped = (skipped + 1) % n;
-        m.rentzSkip = skipped;
-        settleRentzTurn(m, (skipped + 1) % n);
-        return m;
-      }
+    // Ace: the same player puts down one more card, if they can.
+    if (rankOf(card) === "A" && !m.finished.includes(seat) && legalCards(m, seat).length > 0) {
+      m.rentzAgain = seat;
+      return m;
+    }
+    // Lowest card: the next player still in the deal loses this turn.
+    if (idx === 0) {
+      let skipped = (seat + 1) % n;
+      while (m.finished.includes(skipped)) skipped = (skipped + 1) % n;
+      m.rentzSkip = skipped;
+      settleRentzTurn(m, (skipped + 1) % n);
+      return m;
     }
     settleRentzTurn(m, (seat + 1) % n);
     return m;
@@ -642,7 +627,29 @@ export function cancelRentz(prev: Match, seat: number, random: () => number = Ma
   return m;
 }
 
-/** A player left mid-match: the match stops, scores so far stand. */
+/** Seat played automatically (its player left or was kicked). */
+export const isBot = (m: Pick<Match, "bots">, seat: number) => seat >= 0 && m.bots?.[seat] === true;
+
+/** Plays every automatic seat whose turn it is (choose or card), until a real player has to act or the match ends. */
+export function runBots(prev: Match, random: () => number = Math.random): Match {
+  let m = prev;
+  for (let guard = 0; guard < 5000 && m.phase !== "over" && isBot(m, actingSeat(m)); guard++) m = autoAction(m, random);
+  return m;
+}
+
+/**
+ * A player left or was kicked mid-match: their seat goes on automatically (legal cards, never blind), so the others
+ * keep playing. With fewer than 2 real players left the match stops instead (scores so far stand).
+ */
+export function seatLeaves(prev: Match, seat: number, random: () => number = Math.random): Match {
+  if (prev.phase === "over" || seat < 0) return prev;
+  const n = prev.seats.length;
+  const bots = Array.from({ length: n }, (_, s) => s === seat || isBot(prev, s));
+  if (bots.filter((b) => !b).length < 2) return abandonMatch(prev);
+  return runBots({ ...structuredClone(prev), bots }, random);
+}
+
+/** The match stops, scores so far stand (fewer than 2 real players left). */
 export function abandonMatch(prev: Match): Match {
   if (prev.phase === "over") return prev;
   const m = structuredClone(prev);

@@ -386,35 +386,33 @@ async function main() {
   check((await call(`/api/rooms/${code}/choose`, { token: A.token, body: { game: "dame" } })).status === 200, "Ana chooses Dame");
   await playDeal(code, members, 3, async (view) => (view.trick.length === 0 && view.tricks.reduce((a, b) => a + b, 0) >= 2 ? { phase: "stop" } : null));
 
-  console.log("Leave mid-match, new round");
+  console.log("Leave mid-match: the seat plays on automatically; new round");
   const left = await call(`/api/rooms/${code}/leave`, { token: C.token, body: {} });
   check(left.status === 200 && left.data.roomClosed === false, "Cris leaves mid-match");
   s = await state(code, A);
-  check(s.room.status === "finished" && s.match.phase === "over" && s.match.endReason === "abandoned", "match stopped (abandoned) for everyone");
+  check(s.room.status === "playing" && s.match.phase !== "over" && s.match.bots.join() === "false,false,true", "the match goes on, Cris's seat is automatic");
+  check(s.match.acting !== 2, "the automatic seat never keeps the turn (it played at once)");
+  const leftB = await call(`/api/rooms/${code}/leave`, { token: B.token, body: {} });
+  check(leftB.status === 200 && leftB.data.roomClosed === false, "Bob leaves too");
+  s = await state(code, A);
+  check(s.room.status === "finished" && s.match.phase === "over" && s.match.endReason === "abandoned", "one real player left: the match stops");
   check(s.room.winnerPlayerId === s.match.seats[s.match.scores.indexOf(Math.max(...s.match.scores))] || s.room.winnerPlayerId === null, "winner = the leader");
   check((await call(`/api/rooms/${code}/play`, { token: A.token, body: { card: "AS" } })).status === 409, "play after the end = 409");
-  check((await call(`/api/rooms/${code}/new-round`, { token: B.token, body: {} })).status === 403, "non-host new round = 403");
+  check((await call(`/api/rooms/${code}/new-round`, { token: D.token, body: {} })).status === 403, "non-host new round = 403");
   check((await call(`/api/rooms/${code}/new-round`, { token: A.token, body: {} })).status === 200, "host new round");
   check((await call(`/api/rooms/${code}/new-round`, { token: A.token, body: {} })).status === 409, "double new round = 409");
-  s = await state(code, B);
+  s = await state(code, D);
   check(s.room.status === "lobby" && s.room.round === 2 && s.match === null, "round 2: clean lobby");
-  check(s.players.map((p) => p.nickname).join() === "Bob,Ana,Eli,Dan", `seats rotated, queued spectators seated in queue order (${s.players.map((p) => p.nickname).join()})`);
+  check(s.players.map((p) => p.nickname).join() === "Ana,Eli,Dan", `seats rotated, queued spectators seated in queue order (${s.players.map((p) => p.nickname).join()})`);
   check(s.spectators.length === 0, "queue emptied");
   check((await state(code, D)).me.role === "player" && (await state(code, E)).me.role === "player", "spectator tokens still work, now as players");
 
-  console.log("Round 2: pending kick enforced");
-  check((await call(`/api/rooms/${code}/leave`, { token: D.token, body: {} })).status === 200, "Dan leaves the lobby");
-  check((await call(`/api/rooms/${code}/start`, { token: A.token, body: {} })).status === 200, "round 2 started (Bob, Ana, Eli)");
-  s = await state(code, A);
-  check(s.match.seats[0] === B.playerId && s.match.chooser === 0, "round 2: Bob chooses first");
-  await call(`/api/rooms/${code}/kick`, { token: A.token, body: { playerId: E.playerId } });
-  await sleep(12_500);
-  check((await call(`/api/rooms/${code}/state`, { token: E.token })).status === 401, "pending kick enforced after 12 s");
-  s = await state(code, A);
-  check(s.players.length === 2 && s.room.status === "finished" && s.match.endReason === "abandoned", "2 players left, the match stopped");
-
-  console.log("Lobby kick, cleanup");
-  await call(`/api/rooms/${code}/new-round`, { token: A.token, body: {} });
+  console.log("Lobby: Totale + setting, kick");
+  check((await call(`/api/rooms/${code}/settings`, { token: E.token, body: { totalePlus: true } })).status === 403, "non-host settings = 403");
+  check((await call(`/api/rooms/${code}/settings`, { token: A.token, body: { totalePlus: "yes" } })).status === 400, "malformed setting = 400");
+  check((await call(`/api/rooms/${code}/settings`, { token: A.token, body: { totalePlus: true } })).status === 200, "host adds Totale + in the lobby");
+  check((await state(code, D)).room.totalePlus === true, "everyone sees Totale +");
+  check((await call(`/api/rooms/${code}/settings`, { token: A.token, body: { totalePlus: false } })).status === 200, "and takes it off again");
   const F = await join("Fay", randomUUID());
   check(!!F.token, "Fay joins the lobby");
   check((await call(`/api/rooms/${code}/kick`, { token: A.token, body: { playerId: A.playerId } })).status === 400, "host cannot kick himself");
@@ -422,7 +420,22 @@ async function main() {
   const k = await call(`/api/rooms/${code}/kick`, { token: A.token, body: { playerId: F.playerId } });
   check(k.status === 200 && !k.data.pending, "lobby kick is immediate");
   check((await call(`/api/rooms/${code}/state`, { token: F.token })).status === 401, "kicked player = 401");
-  check((await call(`/api/rooms/${code}/leave`, { token: B.token, body: {} })).data.roomClosed === false, "Bob leaves");
+
+  console.log("Round 2: pending kick enforced, the kicked seat plays on automatically");
+  check((await call(`/api/rooms/${code}/start`, { token: A.token, body: {} })).status === 200, "round 2 started (Ana, Eli, Dan)");
+  s = await state(code, A);
+  check(s.match.seats.join() === [A, E, D].map((p) => p.playerId).join() && s.match.chooser === 0 && s.match.games.length === 8, "round 2: Ana chooses first, 8 games");
+  check((await call(`/api/rooms/${code}/settings`, { token: A.token, body: { totalePlus: true } })).status === 409, "settings during a match = 409");
+  await call(`/api/rooms/${code}/kick`, { token: A.token, body: { playerId: E.playerId } });
+  await sleep(12_500);
+  check((await call(`/api/rooms/${code}/state`, { token: E.token })).status === 401, "pending kick enforced after 12 s");
+  s = await state(code, A);
+  check(s.players.length === 2 && s.room.status === "playing" && s.match.bots.join() === "false,true,false", "Eli's seat is automatic, the match goes on");
+  check((await call(`/api/rooms/${code}/leave`, { token: D.token, body: {} })).status === 200, "Dan leaves");
+  s = await state(code, A);
+  check(s.room.status === "finished" && s.match.endReason === "abandoned", "one real player left: the match stops");
+
+  console.log("Cleanup");
   const last = await call(`/api/rooms/${code}/leave`, { token: A.token, body: {} });
   check(last.data.roomClosed === true, "last one out closes the room");
   check((await joinRes("X", randomUUID())).status === 404, "room gone");

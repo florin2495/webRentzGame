@@ -7,7 +7,6 @@ import { playTurnChime, unlockAudio } from "@/lib/client/sound";
 import {
   cardLabel,
   GAME_INFO,
-  RANK_LABEL,
   rankOf,
   rentzPoints,
   rentzRow,
@@ -159,9 +158,6 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
                 <h2 className="mt-1 text-xl font-black">
                   {GAME_INFO[m.game].name}
                   {m.blind && <BlindBadge />}
-                  {m.game === "rentz" && m.rentzStart && (
-                    <span className="ml-2 text-sm font-semibold text-zinc-500">de la {RANK_LABEL[m.rentzStart]}</span>
-                  )}
                 </h2>
                 <p className="text-xs text-zinc-500">{GAME_INFO[m.game].rule}</p>
               </>
@@ -199,11 +195,7 @@ export function Game({ state, token, refresh, patch, kickLeft }: Props) {
                 🔄 {m.lastRefusal!.seat === m.mySeat ? "Ai" : `${name(m.lastRefusal!.seat)} a`} refuzat cărțile. S-au împărțit din nou.
               </p>
             )}
-            {m.game === "rentz" && m.rentzSkip !== null && m.phase === "playing" && (
-              <p role="status" data-testid="rentz-skip" className="mt-2 rounded-lg bg-zinc-100 px-3 py-1.5 text-center text-sm dark:bg-zinc-900">
-                ⏸ {m.rentzSkip === m.mySeat ? "Stai" : `${name(m.rentzSkip)} stă`} o tură (s-a pus cea mai mică carte).
-              </p>
-            )}
+            {m.game === "rentz" && m.phase === "playing" && <RentzNotes m={m} name={name} />}
             {rentzCancelNow && (
               <p
                 role="status"
@@ -475,7 +467,7 @@ function Felt({ m, spots, name, showLast }: { m: MatchView; spots: Map<number, S
             <div key={suit} className="flex h-11 items-center" title={SUIT_NAME[suit]} data-suit={suit}>
               {row.length === 0 ? (
                 <span className="flex h-10 w-7 items-center justify-center rounded-md border border-dashed border-emerald-200/50 text-[10px] font-bold text-emerald-100/80">
-                  {m.rentzStart ? RANK_LABEL[m.rentzStart] : "J"}
+                  J
                   {SUIT_SYMBOL[suit]}
                 </span>
               ) : (
@@ -553,6 +545,11 @@ function SeatChip({ m, seat, connected }: { m: MatchView; seat: number; connecte
           {m.phase === "choosing" ? "alege" : "a ales"}
         </span>
       )}
+      {m.bots[seat] && (
+        <span data-testid="seat-bot" className="block text-[10px] font-semibold text-zinc-500" title="A ieșit din meci: joacă automat cărți permise">
+          🤖 automat
+        </span>
+      )}
       {m.refused[seat] && <span className="block text-[10px] text-amber-600">refuz folosit</span>}
       {m.blindUsed[seat] && <span className="block text-[10px] text-zinc-500">blind folosit</span>}
       <OfflineBadge connected={connected} />
@@ -583,6 +580,57 @@ function FinalBanner({ m }: { m: MatchView }) {
         {winners.map((s) => (s === m.mySeat ? "Tu" : m.names[s])).join(" și ")} {winners.length > 1 ? "câștigă la egalitate" : winners[0] === m.mySeat ? "ai câștigat" : "câștigă"}
       </h2>
       <p className="text-sm text-zinc-500">cu {fmt(best)} puncte</p>
+      <FinalRanking m={m} />
+    </div>
+  );
+}
+
+/** Every player by final score, with places (equal scores share a place: 1, 2, 2, 4). */
+function FinalRanking({ m }: { m: MatchView }) {
+  const order = m.scores.map((score, seat) => ({ seat, score })).sort((a, b) => b.score - a.score || a.seat - b.seat);
+  const place = (score: number) => 1 + order.filter((o) => o.score > score).length;
+  const medal = (p: number) => (p === 1 ? "🥇" : p === 2 ? "🥈" : p === 3 ? "🥉" : `${p}.`);
+  return (
+    <ol data-testid="final-ranking" className="mx-auto mt-3 flex max-w-xs flex-col gap-1 text-left">
+      {order.map(({ seat, score }) => (
+        <li
+          key={seat}
+          className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ${
+            seat === m.mySeat ? "bg-indigo-50 font-bold dark:bg-indigo-950" : "bg-zinc-50 dark:bg-zinc-900"
+          }`}
+        >
+          <span>
+            <span className="inline-block w-7">{medal(place(score))}</span>
+            {seat === m.mySeat ? `${m.names[seat]} (tu)` : m.names[seat]}
+            {m.bots[seat] && <span className="ml-1 text-[10px] text-zinc-500">🤖</span>}
+          </span>
+          <span className={`font-mono ${score > 0 ? "text-emerald-600" : score < 0 ? "text-rose-600" : "text-zinc-400"}`}>{fmt(score)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** Rentz: why the turn is where it is (Ace plays again, passes, the lowest card skips someone). */
+function RentzNotes({ m, name }: { m: MatchView; name: (s: number) => string }) {
+  const who = (s: number) => (s === m.mySeat ? "Tu" : name(s));
+  const notes: string[] = [];
+  if (m.rentzAgain !== null) notes.push(m.rentzAgain === m.mySeat ? "🅰 Ai pus un As: mai pui o carte." : `🅰 ${name(m.rentzAgain)} a pus un As și mai pune o carte.`);
+  if (m.rentzSkip !== null) notes.push(`⏸ ${m.rentzSkip === m.mySeat ? "Stai" : `${name(m.rentzSkip)} stă`} o tură (s-a pus cea mai mică carte).`);
+  if (m.passes.length > 0) {
+    const mine = m.passes.includes(m.mySeat);
+    const others = m.passes.filter((s) => s !== m.mySeat).map(who);
+    if (mine) notes.push("✋ Ai dat pas: nu aveai nicio carte de pus.");
+    if (others.length > 0) notes.push(`✋ ${others.join(", ")} ${others.length === 1 ? "a" : "au"} dat pas.`);
+  }
+  if (notes.length === 0) return null;
+  return (
+    <div role="status" data-testid="rentz-notes" className="mt-2 flex flex-col gap-1">
+      {notes.map((t) => (
+        <p key={t} className="rounded-lg bg-zinc-100 px-3 py-1.5 text-center text-sm dark:bg-zinc-900">
+          {t}
+        </p>
+      ))}
     </div>
   );
 }

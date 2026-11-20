@@ -6,7 +6,7 @@ import { MAX_PLAYERS, MIN_PLAYERS } from "@/lib/game";
 import type { RoomState } from "@/lib/types";
 import { OfflineBadge } from "./PlayerList";
 import { Rules } from "./Rules";
-import { Button, Card, ErrorText } from "./ui";
+import { Button, Card, ErrorText, Toggle } from "./ui";
 
 interface Props {
   state: RoomState;
@@ -53,9 +53,21 @@ export function Lobby({ state, token, refresh }: Props) {
             {players.length}/{MAX_PLAYERS} · minim {MIN_PLAYERS}
           </span>
         </div>
-        <p data-testid="lobby-games" className="mb-2 text-xs text-zinc-500">
-          {room.totalePlus ? "9 jocuri pe jucător (cu Totale +)" : "8 jocuri pe jucător (fără Totale +)"}
-        </p>
+        {isHost ? (
+          <div data-testid="lobby-games" className="mb-2">
+            <Toggle
+              label="Adaugă jocul Totale + (al 9-lea)"
+              hint={room.totalePlus ? "9 jocuri pe jucător: Whist +50 pe levată și 10♣ +200, într-o mână." : "8 jocuri pe jucător."}
+              checked={room.totalePlus}
+              disabled={busy !== null}
+              onChange={(v) => void run("settings", "settings", { totalePlus: v })}
+            />
+          </div>
+        ) : (
+          <p data-testid="lobby-games" className="mb-2 text-xs text-zinc-500">
+            {room.totalePlus ? "9 jocuri pe jucător (cu Totale +)" : "8 jocuri pe jucător (fără Totale +)"}
+          </p>
+        )}
         <ul data-testid="lobby-players" className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
           {players.map((p, index) => (
             <li key={p.id} className="flex items-center justify-between gap-2 py-2">

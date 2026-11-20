@@ -21,6 +21,10 @@ export function Rules({ open = false }: { open?: boolean }) {
           carte pe masă. Se împart din nou, iar jocul se alege din nou.
         </li>
         <li>
+          <b>Cine iese din meci</b> (sau e scos de host) nu mai oprește jocul: locul lui joacă automat, cu cărți permise. Meciul se
+          oprește doar dacă rămâne un singur jucător real.
+        </li>
+        <li>
           <b>Blind:</b> fiecare jucător are un singur joc blind pe meci. Când îi vine rândul să aleagă, e întrebat întâi dacă joacă
           blind, înainte să-și vadă cărțile; dacă da, alege jocul fără să le vadă și punctajul mâinii se dublează. Dacă mâna se
           reîmparte (refuz sau Rentz anulat), blind-ul nu se consumă și este întrebat din nou.
@@ -37,7 +41,7 @@ export function Rules({ open = false }: { open?: boolean }) {
             <b>{GAME_INFO[g].name}:</b> {GAME_INFO[g].rule}
           </li>
         ))}
-        <li className="text-xs">Totale + e opțional: se alege la crearea camerei.</li>
+        <li className="text-xs">Totale + e opțional: îl bifează host-ul la crearea camerei sau în lobby, înainte de meci.</li>
       </ul>
     </details>
   );

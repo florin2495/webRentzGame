@@ -36,22 +36,26 @@ test("three players play a live deal of Rentz", async ({ browser }) => {
       await declineBlind(bob, [host, cris], room.code);
     });
 
-    await test.step("Cris leaves mid-match: the match stops for everyone", async () => {
+    await test.step("Cris leaves mid-match: her seat plays on automatically, the match goes on", async () => {
       await leaveAll([cris]);
       for (const p of [host, bob]) {
-        await expect(p.page.getByTestId("final-banner")).toHaveAttribute("data-end", "abandoned", { timeout: REALTIME_MS });
+        await expect(p.page.getByTestId("seat-bot")).toHaveCount(1, { timeout: REALTIME_MS });
+        await expect(p.page.getByTestId("final-banner")).toHaveCount(0);
       }
     });
 
-    await test.step("host starts a new match, Bob follows live", async () => {
-      await host.page.getByTestId("new-round").click();
-      await expect(host.page.getByTestId("lobby-players")).toBeVisible();
-      await expect(bob.page.getByTestId("lobby-players")).toBeVisible({ timeout: REALTIME_MS });
-      await expect(bob.page.getByTestId("lobby-players")).not.toContainText("Cris");
+    await test.step("Bob leaves too: one real player left, the match stops with the full ranking", async () => {
+      await leaveAll([bob]);
+      await expect(host.page.getByTestId("final-banner")).toHaveAttribute("data-end", "abandoned", { timeout: REALTIME_MS });
+      await expect(host.page.getByTestId("final-ranking").locator("li")).toHaveCount(3);
     });
 
-    await test.step("both leave, the room closes", async () => {
-      await leaveAll([bob, host]);
+    await test.step("host starts a new match, then leaves: the room closes", async () => {
+      await host.page.getByTestId("new-round").click();
+      await expect(host.page.getByTestId("lobby-players")).toBeVisible();
+      await expect(host.page.getByTestId("lobby-players")).not.toContainText("Cris");
+      await expect(host.page.getByTestId("lobby-players")).not.toContainText("Bob");
+      await leaveAll([host]);
       room.closed = true;
     });
   });

@@ -44,6 +44,10 @@ export interface MatchView {
   rows: Record<Suit, [number, number] | null> | null;
   /** Rentz: seat that lost its turn to the lowest card just put down. */
   rentzSkip: number | null;
+  /** Rentz: seat that just put down an Ace and plays again. */
+  rentzAgain: number | null;
+  /** Seats played automatically (their player left or was kicked mid-match). */
+  bots: boolean[];
   finished: number[];
   passes: number[];
   /** Games of this match (8, or 9 with Totale +). */

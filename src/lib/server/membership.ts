@@ -1,17 +1,18 @@
 import "server-only";
-import { abandonMatch, leaderSeat } from "@/lib/game";
+import { leaderSeat, seatLeaves } from "@/lib/game";
 import { isKickExpired, KICK_GRACE_MS, KICK_NETWORK_GRACE_MS } from "@/lib/kick";
 import { notifyRoom } from "./broadcast";
 import { db, type RoomRow, T } from "./db";
-import { getRoomByCode, listMembers, sortBySeat } from "./room";
+import { reportLeaderboard } from "./leaderboard";
+import { getRoomByCode, listMembers, serverRandom, sortBySeat } from "./room";
 
 /**
  * Removes a player from a room (used by both "leave" and the host's "kick").
  *  - last player out: the room is deleted
  *  - host removed: host passes to the next player in table order (never to a spectator)
  *  - no player left (only spectators): the room is deleted
- *  - during a match: a card game cannot go on one player short, so the match stops;
- *    scores so far stand and the leader wins.
+ *  - during a match: the seat goes on automatically (legal cards; game.ts seatLeaves), so the others keep
+ *    playing; with fewer than 2 real players left the match stops, scores so far stand and the leader wins.
  */
 export async function removePlayer(room: RoomRow, playerId: string, reason: string): Promise<{ roomClosed: boolean }> {
   const now = new Date().toISOString();
@@ -27,14 +28,18 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
   const newHostId = room.host_player_id === playerId ? remainingPlayers[0].id : room.host_player_id;
   const update: Record<string, unknown> = { host_player_id: newHostId, updated_at: now, last_activity_at: now };
 
+  let completed: NonNullable<RoomRow["match"]> | null = null;
   if (room.status === "playing" && room.match?.seats.includes(playerId)) {
-    const match = abandonMatch(room.match);
+    const match = seatLeaves(room.match, room.match.seats.indexOf(playerId), serverRandom);
     update.match = match;
     update.version = room.version + 1;
-    update.status = "finished";
-    const leader = match.seats[leaderSeat(match)];
-    // The leaver cannot be the winner on record (the FK would be nulled anyway).
-    update.winner_player_id = leader === playerId ? null : leader;
+    if (match.phase === "over") {
+      update.status = "finished";
+      const leader = match.seats[leaderSeat(match)];
+      // The leaver cannot be the winner on record (the FK would be nulled anyway).
+      update.winner_player_id = leader === playerId ? null : leader;
+      if (match.endReason === "complete") completed = match;
+    }
   }
 
   // Update the room first so the host never points at a deleted player.
@@ -48,6 +53,12 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
 
   const { error: deleteError } = await db().from(T.players).delete().eq("id", playerId);
   if (deleteError) throw deleteError;
+
+  if (completed) {
+    // The automatic seats played the last deal to its end: report it like any finished match.
+    const top = Math.max(...completed.scores);
+    await reportLeaderboard(room, completed.names.map((nickname, i) => ({ nickname, won: completed.scores[i] === top })));
+  }
 
   await notifyRoom(room.id, reason);
   return { roomClosed: false };

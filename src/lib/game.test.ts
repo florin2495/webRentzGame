@@ -16,7 +16,6 @@ import {
   isRoomAbandoned,
   isRoomExpired,
   legalCards,
-  LEGACY_GAMES,
   livePoints,
   newMatch,
   playCard,
@@ -28,6 +27,8 @@ import {
   ROOM_ABANDONED_MS,
   ROOM_ABANDONED_PLAYING_MS,
   RulesError,
+  runBots,
+  seatLeaves,
   type Match,
 } from "./game";
 
@@ -203,6 +204,7 @@ describe("rentz (from the 4 Jacks)", () => {
     expect(legalCards(m, 0).sort()).toEqual(["AS", "JH", "TS"]);
     m = playCard(m, 0, "AS");
     expect(m.turn).toBe(0);
+    expect(m.rentzAgain).toBe(0);
     expect(rentzRow(m, "S")).toEqual(["JS", "QS", "KS", "AS"]);
   });
 
@@ -223,12 +225,6 @@ describe("rentz (from the 4 Jacks)", () => {
     expect([...m.history[0].points].sort((a, b) => b - a)).toEqual([400, 200, 100]);
     expect(rentzPoints(4)).toEqual([400, 200, 100, 0]);
     expect(rentzPoints(6)).toEqual([400, 200, 100, 0, 0, 0]);
-  });
-
-  it("a Rentz of a match started before v1.3 keeps running from its start card", () => {
-    let m = fixed(hands, "rentz");
-    m = { ...m, rentzStart: "Q", rows: undefined };
-    expect(legalCards(m, 0).sort()).toEqual(["QH", "QS"]);
   });
 });
 
@@ -339,6 +335,41 @@ describe("blind", () => {
   });
 });
 
+describe("a player leaves mid-match: the seat plays on automatically", () => {
+  it("the match goes on, the automatic seat plays legal cards, and the match can end normally", () => {
+    const random = seeded(5);
+    let m = newMatch(ids(4), ids(4), random);
+    m = seatLeaves(m, 2, random);
+    expect(m.phase).not.toBe("over");
+    expect(m.bots).toEqual([false, false, true, false]);
+    let steps = 0;
+    while (m.phase !== "over" && steps++ < 20000) {
+      expect(m.bots?.[m.phase === "choosing" ? m.chooser : m.turn]).toBe(false); // a bot never waits for anyone
+      m = runBots(autoAction(m, random), random);
+    }
+    expect(m.endReason).toBe("complete");
+    expect(m.history).toHaveLength(4 * 8);
+    expect([...m.played[2]].sort()).toEqual([...BASE_GAMES].sort()); // the automatic seat chose its games too
+  });
+
+  it("an automatic chooser picks at once (never blind) when it is its turn", () => {
+    const random = seeded(6);
+    const m = seatLeaves(newMatch(ids(3), ids(3), random), 0, random); // seat 0 chooses the first deal
+    expect(m.phase).not.toBe("choosing");
+    expect(m.blind).toBe(false);
+    expect(m.game).not.toBeNull();
+  });
+
+  it("with fewer than 2 real players left, the match stops", () => {
+    const random = seeded(7);
+    let m = seatLeaves(newMatch(ids(3), ids(3), random), 1, random);
+    expect(m.phase).not.toBe("over");
+    m = seatLeaves(m, 2, random);
+    expect(m.phase).toBe("over");
+    expect(m.endReason).toBe("abandoned");
+  });
+});
+
 describe("games per match", () => {
   it("8 games per player, 9 with Totale +; rejects 2 or 7 players", () => {
     expect(newMatch(ids(4), ids(4), seeded(3)).totalDeals).toBe(32);
@@ -346,7 +377,7 @@ describe("games per match", () => {
     expect(newMatch(ids(6), ids(6), seeded(3)).totalDeals).toBe(48);
     expect(newMatch(ids(5), ids(5), seeded(3), { totalePlus: true }).totalDeals).toBe(45);
     expect(gamesOf(newMatch(ids(3), ids(3), seeded(3)))).toEqual([...BASE_GAMES]);
-    expect(gamesOf({})).toEqual([...LEGACY_GAMES]); // matches started before v1.3
+    expect(gamesOf({})).toEqual([...BASE_GAMES]);
     expect(() => newMatch(ids(2), ids(2))).toThrow(RulesError);
     expect(() => newMatch(ids(7), ids(7))).toThrow(RulesError);
   });
