@@ -26,6 +26,22 @@ export function Scoreboard({ m }: { m: MatchView }) {
             </tr>
           </thead>
           <tbody>
+            {live && m.game && (
+              <tr data-testid="live-row" className="border-b-2 border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40">
+                <td className="px-1 py-1 text-xs">
+                  <span className="font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">● Live score</span>
+                  <span className="block text-[11px] text-zinc-500">
+                    {GAME_INFO[m.game].name}
+                    {m.blind && " · BLIND ×2"} · {m.names[m.chooser]}
+                  </span>
+                </td>
+                {seats.map((s) => (
+                  <td key={s} className={`px-1 py-1 text-right font-mono font-bold tabular-nums ${tone(live[s])}`}>
+                    {live[s] === 0 ? "0" : fmt(live[s])}
+                  </td>
+                ))}
+              </tr>
+            )}
             {m.history.map((h) => (
               <tr key={h.deal} className="border-t border-zinc-100 dark:border-zinc-900">
                 <td className="px-1 py-1 text-xs">
@@ -40,19 +56,6 @@ export function Scoreboard({ m }: { m: MatchView }) {
                 ))}
               </tr>
             ))}
-            {live && m.game && (
-              <tr data-testid="live-row" className="border-t border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900 dark:bg-indigo-950/30">
-                <td className="px-1 py-1 text-xs">
-                  <span className="font-semibold">{GAME_INFO[m.game].name}</span>
-                  {m.blind && <span className="ml-1 text-[10px] font-bold">BLIND ×2</span>} <span className="text-indigo-600 dark:text-indigo-400">· în curs</span>
-                </td>
-                {seats.map((s) => (
-                  <td key={s} className={`px-1 py-1 text-right font-mono tabular-nums ${tone(live[s])}`}>
-                    {live[s] === 0 ? "·" : fmt(live[s])}
-                  </td>
-                ))}
-              </tr>
-            )}
             {m.history.length === 0 && !live && (
               <tr>
                 <td colSpan={seats.length + 1} className="py-2 text-center text-xs text-zinc-500">
