@@ -17,6 +17,7 @@ import {
   isRoomExpired,
   legalCards,
   LEGACY_GAMES,
+  livePoints,
   newMatch,
   playCard,
   ranksFor,
@@ -140,6 +141,7 @@ describe("trick games", () => {
     l = playCard(l, 2, "QS");
     l = playCard(l, 3, "8S");
     expect(dealPoints(l)).toEqual([0, 0, -50, 0]);
+    expect(livePoints(l)).toEqual([0, 0, -50, 0]); // the score moves after every trick
     let t = fixed(hands, "totale");
     t = playCard(t, 0, "QC");
     t = playCard(t, 1, "KC");
@@ -303,6 +305,7 @@ describe("blind", () => {
     m = playCard(m, 2, "KH");
     m = playCard(m, 3, "7H");
     expect(m.history[0]).toMatchObject({ game: "rege", points: [0, -400, 0, 0], blind: true });
+    expect(livePoints(m)).toBeNull(); // between deals
     expect(m.scores).toEqual([0, -400, 0, 0]);
     expect(m.blindUsed).toEqual([true, false, false, false]);
     expect(m.chooser).toBe(1);

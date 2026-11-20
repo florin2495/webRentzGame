@@ -7,6 +7,7 @@ import {
   capeteCount,
   gamesOf,
   handHidden,
+  livePoints,
   isRoomAbandoned,
   isRoomExpired,
   leaderSeat,
@@ -294,6 +295,7 @@ export function viewMatch(m: Match, playerId: string): MatchView {
     blind: m.blind === true,
     lastRentzCancel: m.lastRentzCancel ?? null,
     scores: m.scores,
+    livePoints: livePoints(m),
     history: m.history,
     endReason: m.endReason,
   };

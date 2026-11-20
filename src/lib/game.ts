@@ -458,6 +458,12 @@ export function dealPoints(m: Match): number[] {
   }).map((p) => p || 0); // −50 × 0 tricks is -0 in JS: store a plain 0
 }
 
+/** Points of the deal in progress so far (blind already doubled), null when no deal is being played. */
+export function livePoints(m: Match): number[] | null {
+  if (m.phase !== "playing" || !m.game) return null;
+  return dealPoints(m).map((p) => (m.blind ? p * BLIND_FACTOR : p) || 0);
+}
+
 function trickDealOver(m: Match): boolean {
   if (m.hands.every((h) => h.length === 0)) return true;
   const taken = m.taken.flat();

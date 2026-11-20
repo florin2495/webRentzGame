@@ -65,6 +65,8 @@ export interface MatchView {
   /** This deal is blind (points x2). */
   blind: boolean;
   scores: number[];
+  /** Points of the deal in progress so far (after every trick / Rentz card), null outside a deal. */
+  livePoints: number[] | null;
   history: DealResult[];
   endReason: "complete" | "abandoned" | null;
 }
