@@ -485,7 +485,7 @@ function Felt({ m, spots, name, showLast }: { m: MatchView; spots: Map<number, S
   const showing = live.length === 0 && showLast && m.lastTrick ? m.lastTrick.cards : live;
   const faded = live.length === 0;
   return (
-    <div className={`${felt} h-44`} data-testid="felt" data-mode="trick" data-last={faded && showing.length > 0}>
+    <div className={`${felt} ${m.seats.length >= 5 ? "h-60" : "h-52"}`} data-testid="felt" data-mode="trick" data-last={faded && showing.length > 0}>
       {showing.length === 0 ? (
         <span className="absolute inset-0 flex items-center justify-center px-2 text-center text-xs text-emerald-100/80">
           {m.phase === "choosing" ? "Se alege jocul…" : "Masa e goală"}
@@ -496,11 +496,14 @@ function Felt({ m, spots, name, showLast }: { m: MatchView; spots: Map<number, S
           return (
             <span
               key={p.card}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
+              className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
               style={{ left: `${x}%`, top: `${y}%` }}
-              title={p.seat === m.mySeat ? "tu" : name(p.seat)}
             >
               <PlayingCard card={p.card} size="felt" faded={faded} />
+              {/* Who put the card down (user's request: keep the name under every card). */}
+              <span data-testid="felt-name" className="max-w-16 truncate text-[10px] font-semibold leading-none text-emerald-50">
+                {p.seat === m.mySeat ? "tu" : name(p.seat)}
+              </span>
             </span>
           );
         })
