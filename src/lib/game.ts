@@ -133,7 +133,7 @@ export function matchGames(totalePlus: boolean): GameId[] {
 
 export const GAME_INFO: Record<GameId, { name: string; icon: string; rule: string }> = {
   rege: { name: "Regele de inimă", icon: "K♥", rule: "Cine ia K♥ primește −200. Mâna se oprește când iese regele." },
-  dame: { name: "Dame", icon: "Q", rule: "−30 pentru fiecare damă luată. Mâna se oprește când au ieșit toate 4." },
+  dame: { name: "Dame", icon: "Q", rule: "−40 pentru fiecare damă luată. Mâna se oprește când au ieșit toate 4." },
   carouri: {
     name: "Carouri",
     icon: "♦",
@@ -143,7 +143,7 @@ export const GAME_INFO: Record<GameId, { name: string; icon: string; rule: strin
   totale: {
     name: "Totale",
     icon: "Σ",
-    rule: "Toate penalizările odată: K♥ −200, dame −30, caro mare −20 / mic −10, levate −50 (dama de caro se pune și ca damă, și ca caro).",
+    rule: "Toate penalizările odată: K♥ −200, dame −40, caro mare −20 / mic −10, levate −50 (dama de caro se pune și ca damă, și ca caro).",
   },
   zece: { name: "Zece de treflă", icon: "10♣", rule: "Cine ia 10♣ primește +200. Mâna se oprește când iese." },
   whist: { name: "Whist", icon: "+", rule: "+50 pentru fiecare levată luată." },
@@ -157,7 +157,7 @@ export const GAME_INFO: Record<GameId, { name: string; icon: string; rule: strin
 
 export const POINTS = {
   rege: -200,
-  dame: -30,
+  dame: -40,
   /** Carouri: 10, J, Q, K, A. */
   caroMare: -20,
   /** Carouri: 9 and below. */

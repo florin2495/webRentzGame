@@ -62,7 +62,7 @@ Rules for schema changes:
   `matchAction` refuses them. Leaderboard: `saveMatch` reports a complete match to the hub's `hub_leaderboard*` (best effort, idempotent);
   rooms named `e2e-test-…` never reach it (`isTestRoom` in `leaderboard.ts`).
 - 3-6 players: 8 cards each, deck = top 2N ranks per suit (3: 9-A, 4: 7-A, 5: 5-A, 6: 3-A).
-- Games (user's rules, 2026-11-21; points fixed, not configurable): Regele de inimă −200, Dame −30 each, Carouri big (10-A) −20 /
+- Games (user's rules, 2026-11-21; points fixed, not configurable): Regele de inimă −200, Dame −40 each, Carouri big (10-A) −20 /
   small −10, Levate −50 per trick, Totale (all of these), Zece de treflă +200, Whist +50 per trick, Rentz; optional 9th
   "Totale +" (Whist + 10♣ in one deal, room setting `totale_plus`). 8 (or 9) games per player, so 8N (9N) deals. `Match.games`
   holds the list; matches started before v1.3 have none and use `LEGACY_GAMES` (the old 7).

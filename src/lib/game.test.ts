@@ -147,7 +147,7 @@ describe("trick games", () => {
     t = playCard(t, 1, "KC");
     t = playCard(t, 2, "9C");
     t = playCard(t, 3, "JC");
-    expect(dealPoints(t)).toEqual([0, -50 - 30, 0, 0]);
+    expect(dealPoints(t)).toEqual([0, -50 - 40, 0, 0]);
   });
 
   it("Totale +: Whist +50 per trick plus 10♣ +200", () => {
@@ -397,10 +397,10 @@ describe("full matches (random legal play)", () => {
         const carouri = -20 * 5 - 10 * (2 * n - 5); // 10, J, Q, K, A big; the rest small
         const expected: Record<string, number> = {
           rege: -200,
-          dame: -120,
+          dame: -160,
           carouri,
           levate: -50 * 8,
-          totale: -200 - 120 + carouri - 50 * 8,
+          totale: -200 - 160 + carouri - 50 * 8,
           zece: 200,
           whist: 50 * 8,
           rentz: 400 + 200 + 100,
