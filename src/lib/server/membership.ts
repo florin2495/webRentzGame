@@ -1,5 +1,5 @@
 import "server-only";
-import { leaderSeat, seatLeaves } from "@/lib/game";
+import { recordedWinner, seatLeaves } from "@/lib/game";
 import { isKickExpired, KICK_GRACE_MS, KICK_NETWORK_GRACE_MS } from "@/lib/kick";
 import { notifyRoom } from "./broadcast";
 import { db, type RoomRow, T } from "./db";
@@ -35,9 +35,9 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
     update.version = room.version + 1;
     if (match.phase === "over") {
       update.status = "finished";
-      const leader = match.seats[leaderSeat(match)];
-      // The leaver cannot be the winner on record (the FK would be nulled anyway).
-      update.winner_player_id = leader === playerId ? null : leader;
+      // Neither the leaver nor a player who left earlier can be the winner on record: their rows are gone (FK).
+      const winner = recordedWinner(match);
+      update.winner_player_id = winner === playerId ? null : winner;
       if (match.endReason === "complete") completed = match;
     }
   }

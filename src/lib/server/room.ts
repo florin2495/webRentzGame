@@ -14,7 +14,7 @@ import {
   seatBack,
   isRoomAbandoned,
   isRoomExpired,
-  leaderSeat,
+  recordedWinner,
   legalCards,
   PLAYING_IDLE_MINUTES,
   remainingGames,
@@ -227,7 +227,7 @@ export async function saveMatch(room: RoomRow, match: Match, kind: string): Prom
       match,
       version: room.version + 1,
       status: over ? "finished" : "playing",
-      winner_player_id: over ? match.seats[leaderSeat(match)] : null,
+      winner_player_id: over ? recordedWinner(match) : null,
       updated_at: now,
       last_activity_at: now,
     })

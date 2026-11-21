@@ -27,6 +27,7 @@ import {
   ROOM_ABANDONED_MS,
   ROOM_ABANDONED_PLAYING_MS,
   RulesError,
+  recordedWinner,
   rejoinableSeat,
   runBots,
   seatAway,
@@ -362,6 +363,15 @@ describe("a player leaves mid-match: the seat plays on automatically", () => {
     expect(m.phase).not.toBe("choosing");
     expect(m.blind).toBe(false);
     expect(m.game).not.toBeNull();
+  });
+
+  it("a leader who left is never recorded as the winner (their player row is gone)", () => {
+    const random = seeded(12);
+    let m = newMatch(ids(3), ids(3), random);
+    m = { ...m, scores: [0, 0, 500] };
+    m = seatLeaves(m, 2, random);
+    expect(recordedWinner(m)).toBeNull();
+    expect(recordedWinner({ ...m, scores: [10, 0, 5] })).toBe("p0");
   });
 
   it("with fewer than 2 real players left, the match stops", () => {

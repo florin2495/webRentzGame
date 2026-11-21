@@ -73,7 +73,8 @@ Rules for schema changes:
 - Leaving / kicked mid-match (user's rule, 2026-11-21): the seat becomes automatic (`Match.bots`, game.ts `seatLeaves`):
   `runBots` plays it (legal cards, random game, never blind) right after every move in `matchAction` and on removal, so the
   others keep playing. With fewer than 2 real players left the match stops (abandoned, scores stand). A match that the
-  automatic seats finish is reported to the leaderboard by `removePlayer`. The final banner lists every player with places.
+  automatic seats finish is reported to the leaderboard by `removePlayer`. The winner stored on the room is `recordedWinner` (null when
+  the leader left: their row is gone and `winner_player_id` is a foreign key). The final banner lists every player with places.
 - Away and back (user's rule, 2026-11-21): a seated player unseen for `AWAY_MS` (60 s, `reconnect.ts`) during a match goes
   automatic (`seatAway`; not `left`, so they still count for "2 players"), lazily in `requireMember` -> `syncPresence`
   (any member request; saved with the version check). Their next request makes the seat theirs again (`seatBack`). The

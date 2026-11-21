@@ -713,6 +713,15 @@ export function leaderSeat(m: Match): number {
   return m.scores.reduce((best, s, i) => (s > m.scores[best] ? i : best), 0);
 }
 
+/**
+ * The winner to store on the room (rentz_rooms.winner_player_id): the leader's player id, or null when the leader's
+ * player left the room (their row is gone, so the foreign key would refuse the id).
+ */
+export function recordedWinner(m: Match): string | null {
+  const seat = leaderSeat(m);
+  return m.left?.[seat] ? null : m.seats[seat];
+}
+
 /** Who has to act now (choose or play), or -1. */
 export function actingSeat(m: Match): number {
   if (m.phase === "choosing") return m.chooser;

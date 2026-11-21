@@ -400,7 +400,7 @@ async function main() {
   check(sC.match.bots.join() === "false,false,false", "nobody is automatic any more");
   check((await call(`/api/rooms/${code}/leave`, { token: C2.token, body: {} })).status === 200, "Cris leaves again: automatic again");
   const leftB = await call(`/api/rooms/${code}/leave`, { token: B.token, body: {} });
-  check(leftB.status === 200 && leftB.data.roomClosed === false, "Bob leaves too");
+  check(leftB.status === 200 && leftB.data.roomClosed === false, `Bob leaves too (${leftB.status} ${leftB.data.error ?? ""})`);
   s = await state(code, A);
   check(s.room.status === "finished" && s.match.phase === "over" && s.match.endReason === "abandoned", "one real player left: the match stops");
   check(s.room.winnerPlayerId === s.match.seats[s.match.scores.indexOf(Math.max(...s.match.scores))] || s.room.winnerPlayerId === null, "winner = the leader");
