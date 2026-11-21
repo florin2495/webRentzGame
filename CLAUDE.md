@@ -74,6 +74,13 @@ Rules for schema changes:
   `runBots` plays it (legal cards, random game, never blind) right after every move in `matchAction` and on removal, so the
   others keep playing. With fewer than 2 real players left the match stops (abandoned, scores stand). A match that the
   automatic seats finish is reported to the leaderboard by `removePlayer`. The final banner lists every player with places.
+- Away and back (user's rule, 2026-11-21): a seated player unseen for `AWAY_MS` (60 s, `reconnect.ts`) during a match goes
+  automatic (`seatAway`; not `left`, so they still count for "2 players"), lazily in `requireMember` -> `syncPresence`
+  (any member request; saved with the version check). Their next request makes the seat theirs again (`seatBack`). The
+  room page refreshes every `HEARTBEAT_MS` (20 s) while a match runs so present players are never away; a phone that
+  locks / backgrounds the page for over 60 s does go away. With nobody here at all the automatic seats wait.
+- A player who left (`left`, not `kicked`) takes the seat back by joining again with the same nickname (`rejoinableSeat`
+  / `seatRejoins` in the join route: new player row, same seat). A kicked player joins as a spectator.
 - Cancel Rentz with 4 capete (user's house rule): capete = lowest rank in play + Ace. Once a Rentz is chosen and before
   the first card, any player holding >= 4 capete (the chooser too) may cancel (`POST /cancel-rentz`): redeal, the same
   chooser chooses again, Rentz stays available, no limit, the once-per-match refusal is not used.
@@ -114,8 +121,9 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
   foreign / malformed / not-following-suit cards, autoplay (host only, not on his own turn), kick with "Ignoră", three full
   deals (Regele de inimă −200, Rentz from the Jacks paying 400/200/100 with every possible 4-capete cancel exercised, blind
   Whist +800) with the scores adding up, a Totale + room, a game cannot be
-  chosen twice, leave mid-match (seat goes automatic, then a second leave stops the match), new round (seats rotated, queued spectators
-  seated), host Totale + setting in the lobby, lobby kick, pending kick enforced after 12 s (seat goes automatic). It never plays a match to its natural end (that would write the hub leaderboard). Rooms are named
+  chosen twice, leave mid-match (seat goes automatic, Cris takes it back by joining again, a second leave stops the match), new round (seats rotated, queued spectators
+  seated), host Totale + setting in the lobby, lobby kick, 65 s without two players (both automatic, one comes back), pending kick enforced after 12 s (seat goes
+  automatic, the kicked player rejoins only as a spectator). It never plays a match to its natural end (that would write the hub leaderboard). Rooms are named
   `e2e-test-…` and deleted at the end; it never calls `/api/feedback`.
 - What E2E UI does (`tests/ui/`, shared steps in `helpers.ts`; Rentz needs 3 players, so 3 browser contexts = 3 devices;
   every change must reach the other screens within 5 s without a reload, polling is 60 s, so this checks Realtime; cards

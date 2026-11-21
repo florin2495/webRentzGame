@@ -1,11 +1,11 @@
 import { enforceExpiredKicks } from "@/lib/server/membership";
-import { MAX_PLAYERS, MAX_SPECTATORS, NICKNAME_MAX } from "@/lib/game";
+import { MAX_PLAYERS, MAX_SPECTATORS, NICKNAME_MAX, rejoinableSeat, seatRejoins } from "@/lib/game";
 import { seatBusyMessage, seatClaim } from "@/lib/reconnect";
 import { notifyRoom } from "@/lib/server/broadcast";
 import { hashDeviceId, hashToken, newPlayerToken, verifyPassword } from "@/lib/server/crypto";
 import { db, T } from "@/lib/server/db";
 import { cleanText, fail, handle, isUniqueViolation, readJson } from "@/lib/server/http";
-import { getRoomByCode, touchRoom } from "@/lib/server/room";
+import { getRoomByCode, saveMatch, touchRoom } from "@/lib/server/room";
 
 interface SeatRow {
   id: string;
@@ -20,7 +20,8 @@ interface SeatRow {
 // POST /api/rooms/[code]/join  { nickname, password?, deviceId? }
 // A nickname that already has a seat in the room reclaims that seat (same player id, so the same seat in
 // the match, new token) when the request comes from the same device or the seat has been disconnected
-// for 301 s (DISCONNECT_MS) - also mid-match.
+// for 301 s (DISCONNECT_MS) - also mid-match. A player who left a running match (not a kicked one) takes their
+// automatic seat back by joining again with the same nickname.
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/join">) {
   return handle(async () => {
     const { code } = await ctx.params;
@@ -64,6 +65,26 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/jo
       await touchRoom(room.id);
       await notifyRoom(room.id, "player_rejoined");
       return { code: room.code, playerId: existing.id, token };
+    }
+
+    // The player who left this running match is back: same seat, played by them again.
+    const back = room.status === "playing" && room.match ? rejoinableSeat(room.match, nickname) : -1;
+    if (back >= 0 && room.match) {
+      const token = newPlayerToken();
+      const { data, error } = await db()
+        .from(T.players)
+        .insert({ room_id: room.id, nickname, token_hash: hashToken(token), device_hash: deviceHash, role: "player", seat: back })
+        .select("id")
+        .single();
+      if (isUniqueViolation(error)) fail(409, "Nickname-ul e deja folosit în cameră.");
+      if (error) throw error;
+      try {
+        await saveMatch(room, seatRejoins(room.match, back, data.id), "player_rejoined");
+      } catch (err) {
+        await db().from(T.players).delete().eq("id", data.id); // the match moved meanwhile: no half-joined player
+        throw err;
+      }
+      return { code: room.code, playerId: data.id, token };
     }
 
     // A match is already running: the newcomer watches (spectator) and can queue for the next match.

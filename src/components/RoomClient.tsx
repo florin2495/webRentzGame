@@ -18,6 +18,7 @@ import { PREF_NICKNAME, useStringPref, writePref } from "@/lib/client/prefs";
 import { realtimeClient } from "@/lib/client/realtime";
 import { useKickCountdown } from "@/lib/client/useKickCountdown";
 import { MAX_PLAYERS, NICKNAME_MAX } from "@/lib/game";
+import { HEARTBEAT_MS } from "@/lib/reconnect";
 import type { RoomState } from "@/lib/types";
 import { FeedbackButton } from "./FeedbackButton";
 import { Game } from "./Game";
@@ -28,6 +29,8 @@ import { SpectatorPanel } from "./SpectatorPanel";
 import { Button, Card, ErrorText, Field } from "./ui";
 
 const POLL_MS = 60_000;
+/** During a match: refresh (and stamp presence) this often, so a player still here never looks away (AWAY_MS 60 s). */
+const PLAYING_HEARTBEAT_MS = HEARTBEAT_MS;
 /** Back after being hidden/offline this long: rebuild the Realtime channel (the socket is likely dead). */
 const RECONNECT_AFTER_MS = 5_000;
 /** Delay before rebuilding a channel that reported an error, so a broken socket does not spin. */
@@ -94,6 +97,15 @@ function useRoomState(code: string, token: string) {
     applied.current = latest.current;
     setState((s) => (s ? fn(s) : s));
   }, []);
+
+  // During a match: a heartbeat well inside AWAY_MS, so a player who is here never goes automatic (the server only
+  // learns about presence from requests). A hidden page on a phone has its timers paused: that player does go away.
+  const playing = state?.room.status === "playing" && state.me.role === "player";
+  useEffect(() => {
+    if (!playing) return;
+    const t = window.setInterval(() => void refresh(), PLAYING_HEARTBEAT_MS);
+    return () => window.clearInterval(t);
+  }, [playing, refresh]);
 
   // Bumping this tears the Realtime channel down and subscribes again (phones kill sockets in the background).
   const [reconnectKey, setReconnectKey] = useState(0);
@@ -221,7 +233,7 @@ function LeaveButton({ state, token }: { state: RoomState; token: string }) {
       : alone
       ? "Ești singur în cameră. Dacă pleci, camera se închide. Continui?"
       : room.status === "playing"
-        ? "Părăsești meciul în desfășurare. Meciul se oprește pentru toți, cu scorul de acum. Continui?"
+        ? "Părăsești meciul în desfășurare. Locul tău va juca automat (dacă mai rămân cel puțin 2 jucători); poți reveni cu același nickname. Continui?"
         : isHost
           ? "Ești host. Dacă pleci, următorul jucător devine host. Continui?"
           : "Sigur vrei să părăsești camera?";

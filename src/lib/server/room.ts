@@ -10,6 +10,8 @@ import {
   isBot,
   livePoints,
   runBots,
+  seatAway,
+  seatBack,
   isRoomAbandoned,
   isRoomExpired,
   leaderSeat,
@@ -24,7 +26,7 @@ import {
   type Match,
 } from "@/lib/game";
 import { kickRemainingMs } from "@/lib/kick";
-import { isConnected, LAST_SEEN_TOUCH_MS } from "@/lib/reconnect";
+import { AWAY_MS, isConnected, LAST_SEEN_TOUCH_MS } from "@/lib/reconnect";
 import type { MatchActionResult, MatchView, PublicPlayer, RoomState } from "@/lib/types";
 import { notifyRoom } from "./broadcast";
 import { hashToken } from "./crypto";
@@ -127,7 +129,34 @@ export async function requireMember(req: Request, code: string): Promise<{ room:
   if (!data) fail(401, "Nu ești în această cameră.");
   const player = data as PlayerRow;
   await touchPlayer(player);
+  room = await syncPresence(room, player);
   return { room, player };
+}
+
+/**
+ * Presence during a match (lazy, on every member request): the caller's own automatic seat is theirs again if they were
+ * only away; any other seated player unseen for AWAY_MS (60 s) goes automatic. Saved with the version check; if
+ * someone else moved first, nothing changes and the next request tries again. Returns the room as it is now.
+ */
+async function syncPresence(room: RoomRow, me: PlayerRow): Promise<RoomRow> {
+  const m = room.match;
+  if (room.status !== "playing" || !m || m.phase === "over") return room;
+  const now = Date.now();
+  const mySeat = me.role === "player" ? m.seats.indexOf(me.id) : -1;
+  let next = mySeat >= 0 ? seatBack(m, mySeat) : m;
+  const seen = new Map((await listMembers(room.id)).map((p) => [p.id, p.last_seen_at]));
+  for (let s = 0; s < next.seats.length; s++) {
+    const t = seen.get(next.seats[s]);
+    if (s === mySeat || t === undefined) continue; // a seat whose player left has no row: it is automatic already
+    if (now - Date.parse(t) > AWAY_MS) next = seatAway(next, s, serverRandom);
+  }
+  if (next === m) return room;
+  try {
+    await saveMatch(room, next, "presence");
+  } catch {
+    return room;
+  }
+  return { ...room, match: next, version: room.version + 1, status: next.phase === "over" ? "finished" : room.status };
 }
 
 /** Presence heartbeat: stamps last_seen_at at most every LAST_SEEN_TOUCH_MS. Best effort, never throws. */
@@ -286,6 +315,7 @@ export function viewMatch(m: Match, playerId: string): MatchView {
     rentzSkip: m.rentzSkip ?? null,
     rentzAgain: m.rentzAgain ?? null,
     bots: Array.from({ length: n }, (_, s) => isBot(m, s)),
+    left: Array.from({ length: n }, (_, s) => m.left?.[s] === true),
     finished: m.finished,
     passes: m.passes,
     games: gamesOf(m),

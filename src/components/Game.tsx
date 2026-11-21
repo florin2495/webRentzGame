@@ -555,8 +555,13 @@ function SeatChip({ m, seat, connected }: { m: MatchView; seat: number; connecte
         </span>
       )}
       {m.bots[seat] && (
-        <span data-testid="seat-bot" className="block text-[10px] font-semibold text-zinc-500" title="A ieșit din meci: joacă automat cărți permise">
-          🤖 automat
+        <span
+          data-testid="seat-bot"
+          data-left={m.left[seat]}
+          className="block text-[10px] font-semibold text-zinc-500"
+          title={m.left[seat] ? "A ieșit din meci: joacă automat cărți permise" : "Lipsește de peste 60 s: joacă automat până revine"}
+        >
+          {m.left[seat] ? "🤖 a ieșit · automat" : "⏸ lipsește · automat"}
         </span>
       )}
       {m.refused[seat] && <span className="block text-[10px] text-amber-600">refuz folosit</span>}

@@ -46,8 +46,10 @@ export interface MatchView {
   rentzSkip: number | null;
   /** Rentz: seat that just put down an Ace and plays again. */
   rentzAgain: number | null;
-  /** Seats played automatically (their player left or was kicked mid-match). */
+  /** Seats played automatically (their player left, was kicked, or is away for 60 s). */
   bots: boolean[];
+  /** Of those, the seats whose player left the room (the others are only away and come back on their own). */
+  left: boolean[];
   finished: number[];
   passes: number[];
   /** Games of this match (8, or 9 with Totale +). */

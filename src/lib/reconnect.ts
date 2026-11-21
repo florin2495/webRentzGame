@@ -5,6 +5,10 @@
 
 /** A seat not seen for this long is shown as "deconectat" and can be reclaimed from another device. */
 export const DISCONNECT_MS = 301_000;
+/** A seated player unseen this long during a match goes automatic until they are back (user's rule: 60 s). */
+export const AWAY_MS = 60_000;
+/** While a match runs the room page asks for /state this often (presence heartbeat, well inside AWAY_MS). */
+export const HEARTBEAT_MS = 20_000;
 /** requireMember refreshes last_seen_at at most this often, to keep DB writes low. */
 export const LAST_SEEN_TOUCH_MS = 10_000;
 

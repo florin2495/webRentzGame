@@ -236,8 +236,12 @@ export interface Match {
   rentzSkip?: number | null;
   /** Rentz: seat that just put down an Ace and plays again (shown to everyone). */
   rentzAgain?: number | null;
-  /** Seats played automatically: the player left or was kicked mid-match (legal cards, never blind). */
+  /** Seats played automatically right now (legal cards, never blind): the player left, was kicked, or is away. */
   bots?: boolean[];
+  /** Seats whose player left the room (or was kicked); away players (unseen 60 s) are bots but not left. */
+  left?: boolean[];
+  /** Seats whose player the host kicked: they cannot take the seat back. */
+  kicked?: boolean[];
   /** Rentz: seats in the order they ran out of cards. */
   finished: number[];
   /** Rentz: seats that had to pass since the last card was put down. */
@@ -630,26 +634,71 @@ export function cancelRentz(prev: Match, seat: number, random: () => number = Ma
 /** Seat played automatically (its player left or was kicked). */
 export const isBot = (m: Pick<Match, "bots">, seat: number) => seat >= 0 && m.bots?.[seat] === true;
 
+/** At least one seat is played by a person who is here (not automatic): only then do the automatic seats play on. */
+const someoneHere = (m: Match) => m.seats.some((_, s) => !isBot(m, s));
+
 /** Plays every automatic seat whose turn it is (choose or card), until a real player has to act or the match ends. */
 export function runBots(prev: Match, random: () => number = Math.random): Match {
   let m = prev;
-  for (let guard = 0; guard < 5000 && m.phase !== "over" && isBot(m, actingSeat(m)); guard++) m = autoAction(m, random);
+  for (let guard = 0; guard < 5000 && m.phase !== "over" && someoneHere(m) && isBot(m, actingSeat(m)); guard++) m = autoAction(m, random);
   return m;
 }
 
+const flags = (m: Match, key: "bots" | "left" | "kicked") => Array.from({ length: m.seats.length }, (_, s) => m[key]?.[s] === true);
+
 /**
  * A player left or was kicked mid-match: their seat goes on automatically (legal cards, never blind), so the others
- * keep playing. With fewer than 2 real players left the match stops instead (scores so far stand).
+ * keep playing. With fewer than 2 players still in the match (away ones count) the match stops (scores so far stand).
  */
-export function seatLeaves(prev: Match, seat: number, random: () => number = Math.random): Match {
+export function seatLeaves(prev: Match, seat: number, random: () => number = Math.random, kicked = false): Match {
   if (prev.phase === "over" || seat < 0) return prev;
-  const n = prev.seats.length;
-  const bots = Array.from({ length: n }, (_, s) => s === seat || isBot(prev, s));
-  if (bots.filter((b) => !b).length < 2) return abandonMatch(prev);
-  return runBots({ ...structuredClone(prev), bots }, random);
+  const m = structuredClone(prev);
+  m.bots = flags(m, "bots");
+  m.left = flags(m, "left");
+  m.kicked = flags(m, "kicked");
+  m.bots[seat] = true;
+  m.left[seat] = true;
+  m.kicked[seat] = kicked;
+  if (m.left.filter((l) => !l).length < 2) return abandonMatch(prev);
+  return runBots(m, random);
 }
 
-/** The match stops, scores so far stand (fewer than 2 real players left). */
+/** A player unseen for AWAY_MS: their seat plays automatically until they are back (seatBack). */
+export function seatAway(prev: Match, seat: number, random: () => number = Math.random): Match {
+  if (prev.phase === "over" || seat < 0 || isBot(prev, seat)) return prev;
+  const m = structuredClone(prev);
+  m.bots = flags(m, "bots");
+  m.bots[seat] = true;
+  return runBots(m, random);
+}
+
+/** An away player is back (any request with their token): the seat is theirs again. */
+export function seatBack(prev: Match, seat: number): Match {
+  if (seat < 0 || !isBot(prev, seat) || prev.left?.[seat]) return prev;
+  const m = structuredClone(prev);
+  m.bots = flags(m, "bots");
+  m.bots[seat] = false;
+  return m;
+}
+
+/** Seat a player who left can take back by joining again with the same nickname (never a kicked one), or -1. */
+export function rejoinableSeat(m: Match, nickname: string): number {
+  if (m.phase === "over") return -1;
+  return m.names.findIndex((name, s) => m.left?.[s] === true && !m.kicked?.[s] && name.toLowerCase() === nickname.toLowerCase());
+}
+
+/** The player who left is back under a new player id: the seat is theirs again. */
+export function seatRejoins(prev: Match, seat: number, playerId: string): Match {
+  const m = structuredClone(prev);
+  m.seats[seat] = playerId;
+  m.bots = flags(m, "bots");
+  m.left = flags(m, "left");
+  m.bots[seat] = false;
+  m.left[seat] = false;
+  return m;
+}
+
+/** The match stops, scores so far stand (fewer than 2 players left in the match). */
 export function abandonMatch(prev: Match): Match {
   if (prev.phase === "over") return prev;
   const m = structuredClone(prev);

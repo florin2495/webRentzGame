@@ -30,7 +30,7 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
 
   let completed: NonNullable<RoomRow["match"]> | null = null;
   if (room.status === "playing" && room.match?.seats.includes(playerId)) {
-    const match = seatLeaves(room.match, room.match.seats.indexOf(playerId), serverRandom);
+    const match = seatLeaves(room.match, room.match.seats.indexOf(playerId), serverRandom, reason === "player_kicked");
     update.match = match;
     update.version = room.version + 1;
     if (match.phase === "over") {

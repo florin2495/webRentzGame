@@ -27,8 +27,12 @@ import {
   ROOM_ABANDONED_MS,
   ROOM_ABANDONED_PLAYING_MS,
   RulesError,
+  rejoinableSeat,
   runBots,
+  seatAway,
+  seatBack,
   seatLeaves,
+  seatRejoins,
   type Match,
 } from "./game";
 
@@ -367,6 +371,54 @@ describe("a player leaves mid-match: the seat plays on automatically", () => {
     m = seatLeaves(m, 2, random);
     expect(m.phase).toBe("over");
     expect(m.endReason).toBe("abandoned");
+  });
+});
+
+describe("away for 60 s, back, and taking a left seat back", () => {
+  it("an away seat plays automatically, still counts as in the match, and is the player's again when they are back", () => {
+    const random = seeded(8);
+    let m = newMatch(ids(3), ids(3), random);
+    m = seatAway(m, 1, random);
+    m = seatAway(m, 2, random); // only seat 0 is here: still no abandoning, away players come back
+    expect(m.phase).not.toBe("over");
+    expect(m.bots).toEqual([false, true, true]);
+    expect(m.left ?? [false, false, false]).toEqual([false, false, false]);
+    m = seatBack(m, 1);
+    expect(m.bots).toEqual([false, false, true]);
+  });
+
+  it("nobody here: the automatic seats wait instead of playing the match alone", () => {
+    const random = seeded(9);
+    let m = newMatch(ids(3), ids(3), random);
+    m = seatAway(seatAway(m, 1, random), 2, random);
+    const deal = m.deal;
+    m = seatAway(m, 0, random);
+    m = runBots(m, random);
+    expect(m.deal).toBe(deal);
+    expect(m.history).toHaveLength(0);
+  });
+
+  it("a player who left takes the seat back with the same nickname; a kicked one cannot", () => {
+    const random = seeded(10);
+    let m = newMatch(ids(4), ids(4), random);
+    m = seatLeaves(m, 2, random);
+    m = seatLeaves(m, 3, random, true);
+    expect(m.bots).toEqual([false, false, true, true]);
+    expect(rejoinableSeat(m, "P2")).toBe(2);
+    expect(rejoinableSeat(m, "p3")).toBe(-1); // kicked
+    expect(rejoinableSeat(m, "p0")).toBe(-1); // not left
+    m = seatRejoins(m, 2, "p2-again");
+    expect(m.seats[2]).toBe("p2-again");
+    expect(m.bots).toEqual([false, false, false, true]);
+    expect(m.left).toEqual([false, false, false, true]);
+  });
+
+  it("away players count as in the match: one left + one away still plays on", () => {
+    const random = seeded(11);
+    let m = newMatch(ids(3), ids(3), random);
+    m = seatAway(m, 1, random);
+    m = seatLeaves(m, 2, random);
+    expect(m.phase).not.toBe("over");
   });
 });
 
